@@ -4,6 +4,7 @@ import socket
 import sys
 import threading
 import time
+import urllib.request
 import webbrowser
 from pathlib import Path
 
@@ -30,6 +31,9 @@ def choose_port(preferred: int = 8765) -> int:
 
 
 def main() -> int:
+    if server_is_alive(8765):
+        webbrowser.open("http://127.0.0.1:8765")
+        return 0
     port = choose_port()
     url = f"http://127.0.0.1:{port}"
     opener = threading.Thread(target=open_browser_later, args=(url,), daemon=True)
@@ -43,6 +47,13 @@ def open_browser_later(url: str) -> None:
     webbrowser.open(url)
 
 
+def server_is_alive(port: int) -> bool:
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=0.8) as response:
+            return response.status == 200
+    except Exception:
+        return False
+
+
 if __name__ == "__main__":
     raise SystemExit(main())
-
