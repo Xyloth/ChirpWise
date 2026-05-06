@@ -5,6 +5,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 venv/
+.env.local
 dist/*.log
 dist/*.zip
 build/
@@ -13,8 +14,10 @@ dist/BirdSoundTrainer/
 data/app/*.sqlite3
 data/raw/xeno_audio_original/*
 data/raw/xeno_metadata/*
+data/raw/taxonomy/ABA_Checklist-*
 data/processed/audio_app/*
 data/processed/clips/*
+data/processed/training_clips_20s/*
 data/processed/spectrograms/*
 data/processed/waveforms/*
 data/manifests/*.json

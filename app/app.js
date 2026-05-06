@@ -1,11 +1,12 @@
 const state = {
   view: "dashboard",
   summary: null,
-  filters: { families: [], sounds: [], regions: [] },
+  filters: { families: [], sounds: [], regions: [], taxonomy_regions: [] },
   browse: {
     search: "",
     family: "",
     sound: "",
+    region: "all",
     order: "common",
   },
   species: [],
@@ -93,7 +94,7 @@ content.addEventListener("input", async (event) => {
       state.settings[key] = target.value;
     }
     saveSettings();
-    renderSettings();
+    render();
   }
 });
 
@@ -172,7 +173,7 @@ function renderDashboard() {
         <div class="panel-header">
           <div>
             <h2>Families</h2>
-            <p>Current fixture data is small; real builds expand from taxonomy import.</p>
+            <p>Current taxonomy and recordings are loaded from the local SQLite dataset.</p>
           </div>
         </div>
         ${familyBars(s.families || [])}
@@ -195,10 +196,12 @@ async function loadSpeciesList() {
   const search = state.browse.search || "";
   const family = state.browse.family || "";
   const sound = state.browse.sound || "";
+  const region = state.browse.region || "all";
   const order = state.browse.order || "common";
   if (search) params.set("search", search);
   if (family) params.set("family", family);
   if (sound) params.set("sound", sound);
+  if (region && region !== "all") params.set("region", region);
   params.set("order", order);
   const payload = await api(`/api/species?${params}`);
   state.species = payload.species;
@@ -223,6 +226,7 @@ function renderBrowse() {
           <input class="input" data-filter="search" value="${escapeAttr(state.browse.search)}" placeholder="Search common, scientific, or eBird code">
           ${select("family", "All families", state.filters.families, state.browse.family)}
           ${select("sound", "All sounds", state.filters.sounds, state.browse.sound)}
+          ${regionSelect("region", state.browse.region)}
           <select class="select" data-filter="order">
             <option value="common" ${state.browse.order === "common" ? "selected" : ""}>Common name</option>
             <option value="family" ${state.browse.order === "family" ? "selected" : ""}>Family</option>
@@ -386,6 +390,7 @@ async function newQuestion() {
   if (state.quiz.sessionId) params.set("session_id", state.quiz.sessionId);
   params.set("choices", state.settings.choices);
   if (state.settings.sound !== "all") params.set("sound", state.settings.sound);
+  if (state.settings.region && state.settings.region !== "all") params.set("region", state.settings.region);
   if (state.settings.weakReview) params.set("weak", "true");
   const question = await api(`/api/quiz/next?${params}`);
   state.quiz.sessionId = question.session_id;
@@ -437,7 +442,9 @@ async function renderProgress() {
 }
 
 async function renderCoverage() {
-  const payload = await api("/api/coverage");
+  const params = new URLSearchParams();
+  if (state.settings.region && state.settings.region !== "all") params.set("region", state.settings.region);
+  const payload = await api(`/api/coverage?${params}`);
   content.innerHTML = `
     <div class="grid cols-3">
       ${metric("Complete", payload.complete, "At least two clips")}
@@ -445,7 +452,10 @@ async function renderCoverage() {
       ${metric("Missing", payload.missing, "No quiz clips yet")}
     </div>
     <section class="panel">
-      <div class="panel-header"><div><h2>Species Coverage</h2><p>Sorted by the weakest coverage first.</p></div></div>
+      <div class="panel-header">
+        <div><h2>Species Coverage</h2><p>Sorted by the weakest coverage first.</p></div>
+        <select class="select" data-setting="region">${regionOptions(state.settings.region)}</select>
+      </div>
       <div class="table-shell">
         <table>
           <thead><tr><th>Species</th><th>Family</th><th>Recordings</th><th>Clips</th><th>Song</th><th>Call</th></tr></thead>
@@ -509,6 +519,13 @@ function renderSettings() {
             ${state.filters.sounds.map((sound) => `<option value="${escapeAttr(sound)}" ${state.settings.sound === sound ? "selected" : ""}>${escapeHtml(sound)}</option>`).join("")}
           </select>
           <small>Filter quiz clips by imported clip type.</small>
+        </div>
+        <div class="setting">
+          <label for="region">Training region</label>
+          <select id="region" class="select" data-setting="region">
+            ${regionOptions(state.settings.region)}
+          </select>
+          <small>Quiz selection uses recording country and coordinates when available.</small>
         </div>
         <div class="setting">
           <label class="toggle-row"><input type="checkbox" data-setting="weakReview" ${state.settings.weakReview ? "checked" : ""}> Weak-species review</label>
@@ -608,6 +625,21 @@ function select(name, label, options, selected = "") {
   `;
 }
 
+function regionSelect(name, selected = "all") {
+  return `
+    <select class="select" data-filter="${name}">
+      ${regionOptions(selected)}
+    </select>
+  `;
+}
+
+function regionOptions(selected = "all") {
+  const options = [{ id: "all", name: "All regions" }, ...(state.filters.regions || [])];
+  return options.map((region) => `
+    <option value="${escapeAttr(region.id)}" ${selected === region.id ? "selected" : ""}>${escapeHtml(region.name)}</option>
+  `).join("");
+}
+
 async function drawWaveforms() {
   const canvases = [...document.querySelectorAll("canvas[data-waveform]")];
   for (const canvas of canvases) {
@@ -662,6 +694,7 @@ function loadSettings() {
   const defaults = {
     choices: 3,
     sound: "all",
+    region: "northeast",
     weakReview: false,
     blindMode: false,
     showWaveform: true,

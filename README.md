@@ -41,7 +41,8 @@ The desktop shortcut created by `tools/create_desktop_shortcut.ps1` points to th
 - Local HTTP API with no external runtime dependencies.
 - Data builder modules for taxonomy import, Xeno-canto querying, metadata persistence, audio conversion, clip generation, database build, and coverage reporting.
 - License policy checks that treat attribution, NC, ND, and derivative rules as first-class data.
-- Generated fixture audio clips so the product is usable before downloading real recordings.
+- Real Xeno-canto audio clips when the local dataset has been built with an API key.
+- Four broad training regions, documented in `docs/regions.md`.
 
 ## Real Dataset Flow
 
@@ -120,6 +121,10 @@ python -m PyInstaller BirdSoundTrainer.spec
 ```
 
 Copy the entire `dist/BirdSoundTrainer/` folder to a flash drive. The executable depends on the adjacent `_internal` folder that contains the local app, database, audio, and manifests.
+
+## Android Direction
+
+The right Android product shape is a region-pack app, not one giant bundled audio archive. The default pack should be `Northeast / Ohio Valley`, with optional downloads for the other three regions. Current desktop data already uses 20-second MP3 practice clips so it can feed that Android app without shipping multi-GB original recordings.
 
 ## License Hygiene
 

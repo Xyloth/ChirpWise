@@ -4,6 +4,7 @@ import socket
 import sys
 import threading
 import time
+import json
 import urllib.request
 import webbrowser
 from pathlib import Path
@@ -50,7 +51,10 @@ def open_browser_later(url: str) -> None:
 def server_is_alive(port: int) -> bool:
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=0.8) as response:
-            return response.status == 200
+            if response.status != 200:
+                return False
+            payload = json.loads(response.read().decode("utf-8"))
+            return payload.get("app") == "BirdSoundTrainer"
     except Exception:
         return False
 

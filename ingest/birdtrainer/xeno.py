@@ -27,6 +27,7 @@ class XenoQueryOptions:
     allow_noncommercial: bool = True
     commercial_build: bool = False
     api_key: str | None = None
+    max_recordings_per_species: int = 2
 
 
 def api_key_from_env_or_option(api_key: str | None) -> str:
@@ -36,11 +37,28 @@ def api_key_from_env_or_option(api_key: str | None) -> str:
 
         key = os.environ.get("XENO_CANTO_API_KEY", "").strip()
     if not key:
+        key = api_key_from_local_env()
+    if not key:
         raise RuntimeError(
             "Xeno-canto API v3 requires an API key. Set XENO_CANTO_API_KEY or pass --key. "
             "Get it from https://xeno-canto.org/account after registering and verifying your email."
         )
     return key
+
+
+def api_key_from_local_env() -> str:
+    for base in [Path.cwd(), *Path.cwd().parents]:
+        env_path = base / ".env.local"
+        if not env_path.exists():
+            continue
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            name, value = stripped.split("=", 1)
+            if name.strip() == "XENO_CANTO_API_KEY":
+                return value.strip().strip('"').strip("'")
+    return ""
 
 
 def request_headers() -> dict[str, str]:
@@ -104,6 +122,8 @@ def fetch_recordings(query: str, *, key: str, page: int = 1, per_page: int = 100
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"Xeno-canto API error {exc.code}: {body[:500]}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Xeno-canto connection error: {exc.reason}") from exc
 
 
 def query_species(
@@ -115,14 +135,16 @@ def query_species(
 ) -> int:
     key = api_key_from_env_or_option(options.api_key)
     metadata_dir.mkdir(parents=True, exist_ok=True)
-    species_rows = conn.execute(
-        "SELECT id, common_name, scientific_name FROM species ORDER BY common_name"
-    ).fetchall()
+    species_rows = conn.execute("SELECT id, common_name, scientific_name FROM species ORDER BY id").fetchall()
     if limit_species:
         species_rows = species_rows[:limit_species]
 
     written = 0
     for species in species_rows:
+        out_path = metadata_dir / f"{species['id']:05d}_{slugify(species['common_name'])}.json"
+        if out_path.exists() and metadata_has_recordings(out_path):
+            written += 1
+            continue
         species_payload: dict[str, Any] = {
             "species_id": species["id"],
             "common_name": species["common_name"],
@@ -132,46 +154,129 @@ def query_species(
             "recordings": [],
         }
         seen_ids: set[str] = set()
-        for sound_type in options.sound_types:
-            query = build_query(species["scientific_name"], options.countries, options.qualities, sound_type)
-            for page in range(1, options.max_pages + 1):
-                payload = fetch_recordings(query, key=key, page=page, per_page=options.per_page)
-                species_payload["queries"].append(
-                    {"query": query, "page": page, "numRecordings": payload.get("numRecordings")}
-                )
-                for recording in payload.get("recordings", []):
-                    recording_id = str(recording.get("id") or recording.get("nr") or "")
-                    if not recording_id or recording_id in seen_ids:
-                        continue
-                    if recording.get("_meta", {}).get("redacted_fields", {}).get("file"):
-                        continue
-                    license_url = normalize_url(recording.get("lic") or recording.get("licUrl") or recording.get("licenseUrl"))
-                    license_name = license_name_from_url(license_url) or recording.get("license")
-                    decision = evaluate_license(
-                        license_name or license_url,
-                        license_url,
-                        allow_noncommercial=options.allow_noncommercial,
-                        commercial_build=options.commercial_build,
-                    )
-                    if not decision.allowed:
-                        continue
-                    recording["_license_decision"] = decision.reason
-                    recording["_license_name"] = license_name
-                    recording["_license_url"] = license_url
-                    recording["url"] = normalize_url(recording.get("url"))
-                    recording["file"] = normalize_url(recording.get("file"))
-                    species_payload["recordings"].append(recording)
-                    seen_ids.add(recording_id)
-                if int(payload.get("numPages") or 1) <= page:
-                    break
-                time.sleep(options.polite_delay)
-            if species_payload["recordings"]:
-                break
-        out_path = metadata_dir / f"{species['id']:05d}_{slugify(species['common_name'])}.json"
+        run_query_ladder(
+            key,
+            species_payload,
+            seen_ids,
+            options,
+            scientific_name=species["scientific_name"],
+            common_name=species["common_name"],
+        )
         out_path.write_text(json.dumps(species_payload, indent=2, ensure_ascii=True), encoding="utf-8")
         written += 1
         time.sleep(options.polite_delay)
     return written
+
+
+def metadata_has_recordings(path: Path) -> bool:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return bool(payload.get("recordings"))
+
+
+def clean_common_name(value: str) -> str:
+    text = value
+    for marker in [" (", " *"]:
+        if marker in text:
+            text = text.split(marker, 1)[0]
+    return text.strip()
+
+
+def run_query_ladder(
+    key: str,
+    species_payload: dict[str, Any],
+    seen_ids: set[str],
+    options: XenoQueryOptions,
+    *,
+    scientific_name: str,
+    common_name: str,
+) -> None:
+    country_plans = [(country,) for country in options.countries] or [()]
+    if options.countries:
+        country_plans.append(())
+    quality_plans = [(quality,) for quality in options.qualities] or [()]
+    if options.qualities:
+        quality_plans.append(())
+    sound_type_plans: tuple[str | None, ...] = (*options.sound_types, None)
+    query_modes = [("sp", scientific_name), ("en", clean_common_name(common_name))]
+
+    for mode, name in query_modes:
+        if not name or "(sp.)" in name.lower() or "hybrid" in name.lower():
+            continue
+        for countries in country_plans:
+            for qualities in quality_plans:
+                for sound_type in sound_type_plans:
+                    query = build_query_for_mode(mode, name, countries, qualities, sound_type)
+                    collect_recordings_for_query(key, query, species_payload, seen_ids, options)
+                    if len(species_payload["recordings"]) >= options.max_recordings_per_species:
+                        return
+
+
+def build_query_for_mode(
+    mode: str,
+    name: str,
+    countries: tuple[str, ...],
+    qualities: tuple[str, ...],
+    sound_type: str | None,
+) -> str:
+    if mode == "en":
+        parts = [f'en:"={name}"', "grp:birds"]
+    else:
+        parts = [f'sp:"{name}"', "grp:birds"]
+    if countries:
+        parts.append(f'cnt:"{countries[0]}"')
+    if qualities:
+        parts.append(f"q:{qualities[0]}")
+    if sound_type:
+        parts.append(f"type:{quote_tag_value(sound_type)}")
+    parts.append('len:"<180"')
+    return " ".join(parts)
+
+
+def collect_recordings_for_query(
+    key: str,
+    query: str,
+    species_payload: dict[str, Any],
+    seen_ids: set[str],
+    options: XenoQueryOptions,
+) -> None:
+    for page in range(1, options.max_pages + 1):
+        try:
+            payload = fetch_recordings(query, key=key, page=page, per_page=options.per_page)
+        except RuntimeError as exc:
+            species_payload["queries"].append({"query": query, "page": page, "error": str(exc)})
+            return
+        species_payload["queries"].append({"query": query, "page": page, "numRecordings": payload.get("numRecordings")})
+        for recording in payload.get("recordings", []):
+            recording_id = str(recording.get("id") or recording.get("nr") or "")
+            if not recording_id or recording_id in seen_ids:
+                continue
+            if recording.get("_meta", {}).get("redacted_fields", {}).get("file"):
+                continue
+            license_url = normalize_url(recording.get("lic") or recording.get("licUrl") or recording.get("licenseUrl"))
+            license_name = license_name_from_url(license_url) or recording.get("license")
+            decision = evaluate_license(
+                license_name or license_url,
+                license_url,
+                allow_noncommercial=options.allow_noncommercial,
+                commercial_build=options.commercial_build,
+            )
+            if not decision.allowed:
+                continue
+            recording["_license_decision"] = decision.reason
+            recording["_license_name"] = license_name
+            recording["_license_url"] = license_url
+            recording["url"] = normalize_url(recording.get("url"))
+            recording["file"] = normalize_url(recording.get("file"))
+            species_payload["recordings"].append(recording)
+            seen_ids.add(recording_id)
+            if len(species_payload["recordings"]) >= options.max_recordings_per_species:
+                return
+        if int(payload.get("numPages") or 1) <= page:
+            return
+        time.sleep(options.polite_delay)
 
 
 def slugify(value: str) -> str:
@@ -279,10 +384,14 @@ def download_audio(conn: sqlite3.Connection, output_dir: Path, *, limit: int | N
             continue
         extension = Path(urllib.parse.urlparse(file_url).path).suffix or Path(metadata.get("file-name") or "").suffix or ".mp3"
         destination = output_dir / f"xc{row['source_recording_id']}{extension}"
-        separator = "&" if "?" in file_url else "?"
-        request = urllib.request.Request(f"{file_url}{separator}{urllib.parse.urlencode({'key': key})}", headers=request_headers())
-        with urllib.request.urlopen(request, timeout=120) as response:
-            destination.write_bytes(response.read())
+        if not destination.exists():
+            separator = "&" if "?" in file_url else "?"
+            request = urllib.request.Request(f"{file_url}{separator}{urllib.parse.urlencode({'key': key})}", headers=request_headers())
+            try:
+                with urllib.request.urlopen(request, timeout=120) as response:
+                    destination.write_bytes(response.read())
+            except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError):
+                continue
         with conn:
             conn.execute(
                 "UPDATE recordings SET audio_original_path = ? WHERE id = ?",
@@ -371,4 +480,3 @@ def parse_length(value: Any) -> float | None:
             total = total * 60 + part
         return total
     return parse_float(value)
-

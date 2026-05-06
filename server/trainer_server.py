@@ -20,6 +20,7 @@ if str(ROOT) not in sys.path:
 from ingest.birdtrainer.config import ProjectPaths
 from ingest.birdtrainer.db import connect, initialize, row_to_dict, rows_to_dicts
 from ingest.birdtrainer.seed import create_seed_dataset
+from server.regions import region_options, region_recording_condition
 
 
 def media_url(path: str | None) -> str | None:
@@ -74,6 +75,7 @@ class TrainerRepository:
         search = first(params, "search")
         family = first(params, "family")
         sound = first(params, "sound")
+        region = first(params, "region")
         order_by = first(params, "order") or "common"
         args: list[Any] = []
         where = ["1 = 1"]
@@ -87,6 +89,17 @@ class TrainerRepository:
         if sound:
             where.append("EXISTS (SELECT 1 FROM clips cx WHERE cx.species_id = s.id AND lower(cx.clip_type) LIKE ?)")
             args.append(f"%{sound.lower()}%")
+        if region and region != "all":
+            where.append(
+                f"""
+                EXISTS (
+                  SELECT 1
+                  FROM species_region_membership srm
+                  WHERE srm.species_id = s.id AND srm.region_id = ?
+                )
+                """
+            )
+            args.append(region)
         order_sql = {
             "common": "s.common_name",
             "family": "s.family, s.common_name",
@@ -189,11 +202,12 @@ class TrainerRepository:
         choices = max(3, min(8, parse_int(first(params, "choices")) or 3))
         family = first(params, "family")
         sound = first(params, "sound")
+        region = first(params, "region")
         weak = (first(params, "weak") or "").lower() in {"1", "true", "yes"}
         if not session_id:
-            session_id = self.create_session({"mode": f"{choices}-choice", "sound": sound})["session_id"]
+            session_id = self.create_session({"mode": f"{choices}-choice", "sound": sound, "region": region})["session_id"]
 
-        clip = self._select_clip(family=family, sound=sound, weak=weak)
+        clip = self._select_clip(family=family, sound=sound, region=region, weak=weak)
         if not clip:
             raise ApiError(HTTPStatus.NOT_FOUND, "no clips match quiz filters")
         options = self._distractors(int(clip["species_id"]), choices)
@@ -314,10 +328,17 @@ class TrainerRepository:
         )
         return {"species": species_rows, "families": family_rows, "sessions": sessions}
 
-    def coverage(self) -> dict[str, Any]:
+    def coverage(self, params: dict[str, list[str]] | None = None) -> dict[str, Any]:
+        region = first(params or {}, "region")
+        clip_region_join = ""
+        clip_region_where = ""
+        region_args: list[Any] = []
+        if region and region != "all":
+            clip_region_where = " AND EXISTS (SELECT 1 FROM species_region_membership srm WHERE srm.species_id = s.id AND srm.region_id = ?)"
+            region_args.append(region)
         rows = rows_to_dicts(
             self.conn.execute(
-                """
+                f"""
                 SELECT
                   s.id, s.common_name, s.scientific_name, s.family, s.region_scope,
                   COUNT(DISTINCT r.id) AS recordings,
@@ -327,9 +348,12 @@ class TrainerRepository:
                 FROM species s
                 LEFT JOIN recordings r ON r.species_id = s.id
                 LEFT JOIN clips c ON c.species_id = s.id
+                  AND c.recording_id = r.id
+                  {clip_region_where}
                 GROUP BY s.id
                 ORDER BY clips ASC, recordings ASC, s.common_name
-                """
+                """,
+                region_args,
             ).fetchall()
         )
         complete = sum(1 for row in rows if row["clips"] >= 2)
@@ -356,8 +380,8 @@ class TrainerRepository:
     def filters(self) -> dict[str, Any]:
         families = [row["family"] for row in self.conn.execute("SELECT DISTINCT family FROM species WHERE family IS NOT NULL ORDER BY family").fetchall()]
         sounds = [row["clip_type"] for row in self.conn.execute("SELECT DISTINCT clip_type FROM clips WHERE clip_type IS NOT NULL ORDER BY clip_type").fetchall()]
-        regions = [row["region_scope"] for row in self.conn.execute("SELECT DISTINCT region_scope FROM species WHERE region_scope IS NOT NULL ORDER BY region_scope").fetchall()]
-        return {"families": families, "sounds": sounds, "regions": regions}
+        taxonomy_regions = [row["region_scope"] for row in self.conn.execute("SELECT DISTINCT region_scope FROM species WHERE region_scope IS NOT NULL ORDER BY region_scope").fetchall()]
+        return {"families": families, "sounds": sounds, "taxonomy_regions": taxonomy_regions, "regions": region_options()}
 
     def reset_progress(self) -> dict[str, Any]:
         with self.conn:
@@ -365,7 +389,7 @@ class TrainerRepository:
             self.conn.execute("DELETE FROM quiz_sessions")
         return {"ok": True}
 
-    def _select_clip(self, *, family: str | None, sound: str | None, weak: bool) -> sqlite3.Row | None:
+    def _select_clip(self, *, family: str | None, sound: str | None, region: str | None, weak: bool) -> sqlite3.Row | None:
         args: list[Any] = []
         where = ["1 = 1"]
         if family:
@@ -374,6 +398,9 @@ class TrainerRepository:
         if sound:
             where.append("lower(c.clip_type) LIKE ?")
             args.append(f"%{sound.lower()}%")
+        if region and region != "all":
+            where.append("EXISTS (SELECT 1 FROM species_region_membership srm WHERE srm.species_id = s.id AND srm.region_id = ?)")
+            args.append(region)
         order = "RANDOM()"
         if weak:
             order = """
@@ -386,6 +413,7 @@ class TrainerRepository:
             SELECT c.*, s.family
             FROM clips c
             JOIN species s ON s.id = c.species_id
+            JOIN recordings r ON r.id = c.recording_id
             LEFT JOIN (
               SELECT correct_species_id, COUNT(*) AS attempts, SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) AS correct
               FROM quiz_answers
@@ -479,7 +507,7 @@ class TrainerHandler(BaseHTTPRequestHandler):
         params = urllib.parse.parse_qs(parsed.query)
         try:
             if parsed.path == "/health":
-                self.send_json({"ok": True, "time": time.time()})
+                self.send_json({"ok": True, "app": "BirdSoundTrainer", "time": time.time()})
             elif parsed.path.startswith("/api/"):
                 with self.repository.lock:
                     self.route_api(parsed.path, params)
@@ -512,7 +540,7 @@ class TrainerHandler(BaseHTTPRequestHandler):
         elif path == "/api/progress/reset" and self.command == "POST":
             self.send_json(self.repository.reset_progress())
         elif path == "/api/coverage":
-            self.send_json(self.repository.coverage())
+            self.send_json(self.repository.coverage(params))
         elif path == "/api/attributions":
             self.send_json(self.repository.attributions())
         else:

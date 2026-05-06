@@ -6,7 +6,9 @@ ROOT = Path.cwd()
 
 datas = [
     (str(ROOT / "app"), "app"),
-    (str(ROOT / "data"), "data"),
+    (str(ROOT / "data" / "app"), "data/app"),
+    (str(ROOT / "data" / "processed" / "training_clips_20s"), "data/processed/training_clips_20s"),
+    (str(ROOT / "data" / "manifests"), "data/manifests"),
     (str(ROOT / "docs"), "docs"),
     (str(ROOT / "README.md"), "."),
     (str(ROOT / "pyproject.toml"), "."),
@@ -54,4 +56,3 @@ coll = COLLECT(
     upx_exclude=[],
     name="BirdSoundTrainer",
 )
-
