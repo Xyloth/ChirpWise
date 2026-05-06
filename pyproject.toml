@@ -1,0 +1,11 @@
+[project]
+name = "bird-sound-trainer"
+version = "0.1.0"
+description = "Local-first bird sound trainer with license-aware ingestion and quiz UI"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.birdtrainer]
+database = "data/app/birdtrainer.sqlite3"
+fixture_database = "data/app/birdtrainer.sqlite3"
+

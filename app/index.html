@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bird Sound Trainer</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+          <div>
+            <div class="brand-title">Bird Sound Trainer</div>
+            <div class="brand-subtitle">Local library</div>
+          </div>
+        </div>
+        <nav class="nav" aria-label="Primary">
+          <button data-view="dashboard" class="nav-button active">Dashboard</button>
+          <button data-view="browse" class="nav-button">Browse</button>
+          <button data-view="quiz" class="nav-button">Quiz</button>
+          <button data-view="progress" class="nav-button">Progress</button>
+          <button data-view="coverage" class="nav-button">Coverage</button>
+          <button data-view="attributions" class="nav-button">Attributions</button>
+          <button data-view="settings" class="nav-button">Settings</button>
+        </nav>
+        <div class="sidebar-footer">
+          <span id="db-status" class="status-dot"></span>
+          <span>SQLite dataset</span>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <h1 id="view-title">Dashboard</h1>
+            <p id="view-subtitle">Training overview and dataset health.</p>
+          </div>
+          <div class="topbar-actions">
+            <button id="quick-quiz" class="primary-button">Start Quiz</button>
+          </div>
+        </header>
+        <section id="content" class="content" aria-live="polite"></section>
+      </main>
+    </div>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
+
