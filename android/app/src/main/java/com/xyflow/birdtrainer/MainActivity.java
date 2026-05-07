@@ -70,6 +70,7 @@ public class MainActivity extends Activity {
     private static final int LINE = Color.rgb(88, 112, 57);
     private static final int MUTED = Color.rgb(184, 195, 145);
     private static final String BUG_EMAIL = "founder@xyflowinnovations.com";
+    private static final String ACKNOWLEDGEMENTS = "Acknowledgements: James Dye; XYFLOW Innovations, LLC.";
     private static final String PREF_QUIZ_PACK = "quiz_pack";
     private static final String PREF_CUSTOM_SPECIES = "custom_species";
     private static final String PREF_REGION_FILTER = "region_filter";
@@ -535,6 +536,8 @@ public class MainActivity extends Activity {
         card.addView(reset, fullButton());
         card.addView(spacer(12));
         card.addView(body("Every answer stores only local progress on this phone."));
+        card.addView(spacer(10));
+        card.addView(body(ACKNOWLEDGEMENTS));
         content.addView(card, fullWidth());
     }
 
@@ -543,16 +546,19 @@ public class MainActivity extends Activity {
     }
 
     private void openBugReportEmail() {
-        Intent intent = new Intent(Intent.ACTION_SENDTO);
-        intent.setData(Uri.parse("mailto:" + BUG_EMAIL));
+        String subject = "ChirpWise Bug Report - Android v" + appVersionName();
+        String body = "What happened:\n\n"
+                + "Steps to reproduce:\n\n"
+                + "Expected result:\n\n"
+                + "Actual result:\n\n"
+                + "App: ChirpWise v" + appVersionName() + "\n"
+                + "Device: " + deviceSummary() + "\n";
+        Uri mailto = Uri.parse("mailto:" + BUG_EMAIL
+                + "?subject=" + Uri.encode(subject)
+                + "&body=" + Uri.encode(body));
+        Intent intent = new Intent(Intent.ACTION_SENDTO, mailto);
         intent.putExtra(Intent.EXTRA_SUBJECT, "ChirpWise Bug Report - Android v" + appVersionName());
-        intent.putExtra(Intent.EXTRA_TEXT,
-                "What happened:\n\n"
-                        + "Steps to reproduce:\n\n"
-                        + "Expected result:\n\n"
-                        + "Actual result:\n\n"
-                        + "App: ChirpWise v" + appVersionName() + "\n"
-                        + "Device: " + deviceSummary() + "\n");
+        intent.putExtra(Intent.EXTRA_TEXT, body);
         try {
             startActivity(Intent.createChooser(intent, "Report a Bug"));
         } catch (Exception ignored) {
@@ -784,7 +790,7 @@ public class MainActivity extends Activity {
         card.addView(body("Use a smaller loop when you want repetition. The quiz still favors misses and learning birds inside the active pack."));
         card.addView(spacer(10));
 
-        TextView current = chip("Using " + quizPackLabel(selectedQuizPack()) + " · " + activeQuizSpecies().size() + " birds");
+        TextView current = chip("Using " + quizPackLabel(selectedQuizPack()) + " - " + activeQuizSpecies().size() + " birds");
         current.setGravity(Gravity.CENTER);
         card.addView(current, new LinearLayout.LayoutParams(match(), dp(40)));
         card.addView(spacer(10));

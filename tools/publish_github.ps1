@@ -1,6 +1,7 @@
 param(
     [string]$Owner = "Xyloth",
-    [string]$RepoName = "ChirpWise"
+    [string]$RepoName = "ChirpWise",
+    [switch]$Private
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,7 +20,7 @@ if ($authExitCode -ne 0) {
     throw "GitHub CLI is not authenticated. Run 'gh auth login' or set GH_TOKEN, then rerun tools\publish_github.ps1."
 }
 
-$description = "Offline bird-sound trainer with Xeno-canto ingestion, regional Android packs, and local progress tracking."
+$description = "Offline Android bird-sound trainer with real Xeno-canto recordings, regional quiz packs, and local progress tracking."
 $repo = "$Owner/$RepoName"
 $branch = (git branch --show-current).Trim()
 $exists = $false
@@ -40,7 +41,8 @@ if ($exists) {
     }
     git push -u origin $branch
 } else {
-    & $gh repo create $RepoName --private --source . --remote origin --push --description $description
+    $visibility = if ($Private) { "--private" } else { "--public" }
+    & $gh repo create $RepoName $visibility --source . --remote origin --push --description $description
 }
 
 try {
@@ -49,4 +51,5 @@ try {
     Write-Host "Repository was pushed. Topic update skipped because this gh version may not support --add-topic."
 }
 
-Write-Host "Published private repo: https://github.com/$repo"
+$visibilityLabel = if ($Private) { "private" } else { "public" }
+Write-Host "Published $visibilityLabel repo: https://github.com/$repo"
