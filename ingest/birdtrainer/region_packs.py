@@ -29,15 +29,15 @@ NORTHEAST_FAMILIES = {
     "New World Vultures (Cathartidae)",
     "Osprey (Pandionidae)",
     "Hawks, Eagles, and Kites (Accipitridae)",
-    "Owls (Tytonidae)",
+    "Barn Owls (Tytonidae)",
     "Owls (Strigidae)",
     "Kingfishers (Alcedinidae)",
-    "Woodpeckers (Picidae)",
+    "Woodpeckers and Allies (Picidae)",
     "Caracaras and Falcons (Falconidae)",
     "Tyrant Flycatchers (Tyrannidae)",
     "Vireos, Shrike-Babblers, and Erpornis (Vireonidae)",
     "Shrikes (Laniidae)",
-    "Jays, Magpies, Crows, and Ravens (Corvidae)",
+    "Jays and Crows (Corvidae)",
     "Larks (Alaudidae)",
     "Swallows (Hirundinidae)",
     "Chickadees and Titmice (Paridae)",
@@ -55,7 +55,7 @@ NORTHEAST_FAMILIES = {
     "Wagtails and Pipits (Motacillidae)",
     "Finches, Euphonias, and Allies (Fringillidae)",
     "Longspurs and Snow Buntings (Calcariidae)",
-    "New World Sparrows (Passerellidae)",
+    "Towhees and Sparrows (Passerellidae)",
     "Yellow-breasted Chat (Icteriidae)",
     "Blackbirds (Icteridae)",
     "New World Warblers (Parulidae)",
@@ -105,7 +105,6 @@ RARE_EXCLUDE_HINTS = (
     "amazon",
     "parrot",
     "parakeet",
-    "hummingbird",
     "trogon",
     "elaenia",
     "becard",
@@ -157,7 +156,7 @@ def classify_species(common_name: str, family: str | None, difficulty: int | Non
     difficulty = difficulty or 3
     regions: list[tuple[str, str]] = []
 
-    if family in NORTHEAST_FAMILIES and difficulty <= 4 and not any(hint in lower for hint in RARE_EXCLUDE_HINTS):
+    if family in NORTHEAST_FAMILIES and difficulty <= 2 and not any(hint in lower for hint in RARE_EXCLUDE_HINTS):
         regions.append(("northeast", "common or plausible ABA species for Northeast / Ohio Valley training"))
 
     if any(hint in lower for hint in SOUTHERN_NAME_HINTS) or family in {

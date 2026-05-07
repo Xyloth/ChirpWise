@@ -10,6 +10,16 @@ dist/*.log
 dist/*.zip
 build/
 dist/BirdSoundTrainer/
+android/.gradle/
+android/keystore/
+android/keystore.properties
+android/local.properties
+android/app/build/
+android/build/
+android/app/src/main/assets/audio/*
+android/app/src/main/assets/dataset.json
+tools/android-build/
+dist/android/*
 *.spec.bak
 data/app/*.sqlite3
 data/raw/xeno_audio_original/*

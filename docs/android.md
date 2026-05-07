@@ -1,22 +1,63 @@
-# Android Packaging Notes
+# Android Build
 
-Current status: the desktop/local-web product is Android-ready at the data layer, but this machine does not currently have the Android build chain installed.
+The Android V1 app is a native Java APK with the `Northeast / Ohio Valley` pack bundled for offline use. It does not need a server, internet access, Python, or Xeno-canto at runtime.
 
-Missing local tools:
+Current local artifact:
 
-- Java/JDK
-- Gradle
-- Android SDK
-- adb
+```text
+dist/android/BirdSoundTrainer-Northeast-v0.1.0.apk
+```
 
-The practical Android path is:
+Current bundled pack:
 
-1. Build the app as a small Android shell around the existing local web UI.
-2. Bundle the default `Northeast / Ohio Valley` pack first.
-3. Keep other packs downloadable or copied into app storage later.
-4. Ship an APK or AAB.
+- Region: `Northeast / Ohio Valley`
+- Species: 316
+- Clips: 346
+- Clip length: 20 seconds
+- Audio source: real Xeno-canto recordings
+- APK size: about 81 MB
+- Android support: API 23+ / Android 6.0+
 
-The 20-second MP3 clip dataset is ready for that. The current full clipped audio set is about 228 MB, while the raw original audio is about 3.5 GB and should not be bundled into a phone app.
+## Install On Android
 
-For a direct text-message install link, the APK needs to be hosted somewhere reachable, such as a GitHub Release, Google Drive, or a small static download page. Android will require sideload approval unless the app is distributed through Google Play.
+Send the APK through a download link, Google Drive, GitHub Release, USB transfer, or direct file transfer.
 
+On the phone:
+
+1. Open the APK file.
+2. Allow installs from that source when Android asks.
+3. Tap install.
+4. If Play Protect blocks it, open the details prompt and choose the install-anyway option.
+5. Open `Bird Sound Trainer`.
+
+This is sideloading, so Android will warn because the APK is not coming from Google Play.
+
+## Build Locally
+
+The portable Android build chain is stored locally under `tools/android-build/` and intentionally ignored by Git.
+
+```powershell
+$base = (Resolve-Path 'tools/android-build').Path
+$env:JAVA_HOME = Join-Path $base 'jdk-17'
+$env:ANDROID_HOME = Join-Path $base 'android-sdk'
+$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+$env:PATH = "$env:JAVA_HOME/bin;$base/gradle-8.10.2/bin;$env:ANDROID_HOME/platform-tools;$env:ANDROID_HOME/build-tools/35.0.0;$env:PATH"
+
+python tools/update_region_membership_from_xeno.py --region northeast
+python tools/backfill_region_audio.py --region northeast
+python tools/create_training_clips.py --seconds 20 --bitrate 96k
+python tools/build_android_assets.py --region northeast --pack-name "Northeast / Ohio Valley" --clean
+gradle -p android assembleRelease
+```
+
+The release APK is written to:
+
+```text
+android/app/build/outputs/apk/release/app-release.apk
+```
+
+For local sharing, copy it to:
+
+```text
+dist/android/BirdSoundTrainer-Northeast-v0.1.0.apk
+```

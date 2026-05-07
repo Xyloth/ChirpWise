@@ -75,10 +75,10 @@ This requires `ffmpeg`. The code checks each recording license before creating d
 Command:
 
 ```powershell
-python -m ingest.birdtrainer.cli segment-clips --seconds 10
+python tools/create_training_clips.py --seconds 20 --bitrate 96k
 ```
 
-Generated clips are stored under `data/processed/clips/`. Clip rows retain recording IDs, species IDs, clip type, difficulty, and derivative status.
+Generated clips are stored under `data/processed/training_clips_20s/`. Clip rows retain recording IDs, species IDs, clip type, difficulty, and derivative status.
 
 If `ffmpeg` is not available, use original downloaded files directly:
 
@@ -87,6 +87,17 @@ python -m ingest.birdtrainer.cli attach-original-clips
 ```
 
 That keeps audio unmodified, which is also the right fallback for recordings whose license does not permit derivatives.
+
+## 6.5 Android Regional Pack
+
+The Android V1 pack is built from the Northeast / Ohio Valley Xeno-canto region list, then backfilled for local species that have regional recordings but no local clip yet:
+
+```powershell
+python tools/update_region_membership_from_xeno.py --region northeast
+python tools/backfill_region_audio.py --region northeast
+python tools/create_training_clips.py --seconds 20 --bitrate 96k
+python tools/build_android_assets.py --region northeast --pack-name "Northeast / Ohio Valley" --clean
+```
 
 ## 7. Reports
 

@@ -39,6 +39,7 @@ The desktop shortcut created by `tools/create_desktop_shortcut.ps1` points to th
 - Local SQLite database with normalized species, recordings, clips, progress, attribution, and similarity tables.
 - Static desktop-style app UI: dashboard, browse/search, species detail, quiz, progress, coverage, attributions, and settings.
 - Local HTTP API with no external runtime dependencies.
+- Native Android APK project with an offline Northeast / Ohio Valley quiz pack.
 - Data builder modules for taxonomy import, Xeno-canto querying, metadata persistence, audio conversion, clip generation, database build, and coverage reporting.
 - License policy checks that treat attribution, NC, ND, and derivative rules as first-class data.
 - Real Xeno-canto audio clips when the local dataset has been built with an API key.
@@ -122,9 +123,15 @@ python -m PyInstaller BirdSoundTrainer.spec
 
 Copy the entire `dist/BirdSoundTrainer/` folder to a flash drive. The executable depends on the adjacent `_internal` folder that contains the local app, database, audio, and manifests.
 
-## Android Direction
+## Android APK
 
-The right Android product shape is a region-pack app, not one giant bundled audio archive. The default pack should be `Northeast / Ohio Valley`, with optional downloads for the other three regions. Current desktop data already uses 20-second MP3 practice clips so it can feed that Android app without shipping multi-GB original recordings.
+The Android V1 app is a native offline APK with the `Northeast / Ohio Valley` pack bundled:
+
+```text
+dist/android/BirdSoundTrainer-Northeast-v0.1.0.apk
+```
+
+It currently contains 316 regional species and 346 real 20-second Xeno-canto clips. Build and sideload notes are in `docs/android.md`.
 
 ## License Hygiene
 

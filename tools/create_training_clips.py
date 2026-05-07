@@ -47,6 +47,7 @@ def main() -> int:
 
     processed = 0
     copied = 0
+    reused = 0
     skipped = 0
     with conn:
         conn.execute("DELETE FROM clips")
@@ -60,7 +61,9 @@ def main() -> int:
             length = float(row["length_seconds"] or 0)
             duration = args.seconds if length <= 0 else min(args.seconds, length)
             start = choose_start(length, duration)
-            if src.suffix.lower() == ".mp3" and length and length <= args.seconds + 0.5:
+            if dest.exists() and dest.stat().st_size > 0:
+                reused += 1
+            elif src.suffix.lower() == ".mp3" and length and length <= args.seconds + 0.5:
                 shutil.copyfile(src, dest)
                 copied += 1
             else:
@@ -111,7 +114,7 @@ def main() -> int:
             conn.execute("UPDATE recordings SET audio_app_path = ?, usable_for_quiz = 1 WHERE id = ?", (str(dest.relative_to(paths.root)), row["recording_id"]))
 
     total_size = sum(path.stat().st_size for path in out_dir.glob("*.mp3"))
-    print(f"created={processed} copied={copied} skipped={skipped} clips={processed + copied}")
+    print(f"created={processed} copied={copied} reused={reused} skipped={skipped} clips={processed + copied + reused}")
     print(f"clip_dir={out_dir}")
     print(f"clip_size_mb={total_size / 1024 / 1024:.2f}")
     return 0
@@ -138,4 +141,3 @@ def safe_name(value: str) -> str:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

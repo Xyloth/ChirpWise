@@ -8,7 +8,13 @@ Default training region for Mark.
 
 Includes the practical area around Ohio, Pennsylvania, Kentucky, West Virginia, Virginia, Indiana, Michigan, and the broader northeastern United States. The coordinate box also catches nearby northeastern and Great Lakes records from New York, New Jersey, Maryland, Delaware, New England, and adjacent southern Canada.
 
-Current playable pack size: 468 species.
+V1 Android membership is generated from Xeno-canto A/B recordings inside this bounding box:
+
+```text
+box:36,-90,48.5,-66
+```
+
+Current Android pack size: 316 species, 346 playable 20-second clips.
 
 ## Southeast
 
@@ -30,7 +36,6 @@ Current playable pack size: 856 species.
 
 ## Notes
 
-Region filtering is based on broad species-pack membership plus recording coordinates when available. Species may appear in more than one pack.
+Desktop region filtering is based on broad species-pack membership plus recording coordinates when available. The Android V1 Northeast pack is stricter and uses Xeno-canto regional recording geography as the source list.
 
 The taxonomy remains the full ABA Area checklist. Region packs affect training and browsing filters, not the canonical species list.
-
