@@ -32,4 +32,5 @@ data/processed/spectrograms/*
 data/processed/waveforms/*
 data/manifests/*.json
 data/manifests/*.csv
+data/manifests/source_coverage_cache/
 !data/raw/taxonomy/sample_taxonomy.csv

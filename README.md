@@ -120,6 +120,13 @@ Current paid-app audit, using the conservative rule that every 20-second practic
 - 1,094 clips need replacement audio or recordist permission before a paid release
 - Full row-by-row audit: `docs/audits/commercial-license-audit.csv`
 
+Current no-email replacement-source map for the 1,161-species North America taxonomy:
+
+- 626 species have strict commercial-safe coverage from Xeno-canto, NPS, or Wikimedia Commons
+- 804 species have coverage if iNaturalist research-grade candidates are accepted after manual listening QC
+- 357 species remain missing
+- Full row-by-row map: `docs/audits/commercial-source-coverage.csv`
+
 ## Project Layout
 
 ```text

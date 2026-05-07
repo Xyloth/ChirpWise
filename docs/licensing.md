@@ -52,3 +52,23 @@ Audit outputs:
 - `docs/audits/commercial-license-audit.md`
 - `docs/audits/commercial-license-audit.csv`
 - `docs/audits/commercial-license-audit.json`
+
+## Replacement Source Coverage
+
+Run the no-email source mapper when evaluating a paid build:
+
+```powershell
+python tools/commercial_source_coverage.py
+```
+
+Current result for the 1,161-species North America taxonomy:
+
+- 626 species have strict no-email commercial-safe coverage from Xeno-canto, NPS, or Wikimedia Commons.
+- 804 species have coverage if iNaturalist research-grade CC0/BY/BY-SA sound candidates are accepted after manual listening QC.
+- 357 species are still missing after these no-email sources.
+
+Coverage outputs:
+
+- `docs/audits/commercial-source-coverage.md`
+- `docs/audits/commercial-source-coverage.csv`
+- `docs/audits/commercial-source-coverage.json`
