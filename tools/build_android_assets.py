@@ -77,7 +77,12 @@ def main() -> None:
                 "licenseName": row["license_name"] or "Unknown license",
                 "licenseUrl": row["license_url"] or "",
                 "attribution": row["attribution_text"] or attribution(row),
+                "sourceRecordingId": row["source_recording_id"] or "",
                 "sourceUrl": row["source_url"] or "",
+                "originalLengthSeconds": round_float(row["length_seconds"]),
+                "clipStartSeconds": round_float(row["start_seconds"]),
+                "clipEndSeconds": round_float(row["end_seconds"]),
+                "clipLengthSeconds": round_float(clip_length(row)),
                 "regions": regions(row["regions"]),
                 "waveform": waveform_peaks(source, ffmpeg),
             }
@@ -116,7 +121,11 @@ def load_rows(db_path: Path, region: str) -> list[sqlite3.Row]:
           r.license_name,
           r.license_url,
           r.attribution_text,
+          r.source_recording_id,
           r.source_url,
+          r.length_seconds,
+          c.start_seconds,
+          c.end_seconds,
           COALESCE(regions.region_ids, '') AS regions
         FROM clips c
         JOIN species s ON s.id = c.species_id
@@ -152,6 +161,20 @@ def attribution(row: sqlite3.Row) -> str:
     recordist = row["recordist"] or "unknown recordist"
     license_name = row["license_name"] or "unknown license"
     return f"{row['common_name']} recording; recorded by {recordist}; licensed {license_name}; {source}"
+
+
+def clip_length(row: sqlite3.Row) -> float | None:
+    start = row["start_seconds"]
+    end = row["end_seconds"]
+    if start is None or end is None:
+        return None
+    return max(0.0, end - start)
+
+
+def round_float(value: float | None) -> float | None:
+    if value is None:
+        return None
+    return round(float(value), 2)
 
 
 def regions(value: str | None) -> list[str]:

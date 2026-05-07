@@ -10,7 +10,14 @@ if (!(Test-Path $gh)) {
     $gh = "gh"
 }
 
-& $gh auth status | Out-Null
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+& $gh auth status *> $null
+$authExitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousErrorActionPreference
+if ($authExitCode -ne 0) {
+    throw "GitHub CLI is not authenticated. Run 'gh auth login' or set GH_TOKEN, then rerun tools\publish_github.ps1."
+}
 
 $description = "Offline bird-sound trainer with Xeno-canto ingestion, regional Android packs, and local progress tracking."
 $repo = "$Owner/$RepoName"
@@ -25,8 +32,12 @@ try {
 }
 
 if ($exists) {
-    git remote remove origin 2>$null
-    git remote add origin "https://github.com/$repo.git"
+    $origin = git remote get-url origin 2>$null
+    if ($LASTEXITCODE -eq 0 -and $origin) {
+        git remote set-url origin "https://github.com/$repo.git"
+    } else {
+        git remote add origin "https://github.com/$repo.git"
+    }
     git push -u origin $branch
 } else {
     & $gh repo create $RepoName --private --source . --remote origin --push --description $description

@@ -5,7 +5,7 @@ The Android V1 app is a native Java APK with the full bird-sound pack bundled fo
 Current local artifact:
 
 ```text
-dist/android/ChirpWise-Full-v0.2.4.apk
+dist/android/ChirpWise-Full-v0.2.5.apk
 ```
 
 Current bundled pack:
@@ -19,7 +19,7 @@ Current bundled pack:
 - APK size: about 265 MB
 - Android support: API 23+ / Android 6.0+
 
-V0.2 adds the ChirpWise visual shell: rounded touch controls, splash screen, fixed bottom tabs, instant bird lookup, alphabetical study mode, quiz mode, local progress tracking, a progress ring, recent birds, and a needs-practice list. V0.2.2 adds real waveform metadata, live quiz playback progress, play/pause, and five-second seeking. V0.2.3 adds full Study/Listen browsing, letter filters, focused quiz packs, and custom quiz sets. V0.2.4 bundles the full clip catalog, keeps Northeast / Ohio Valley as the default region, and adds direct A-Z no-typing filters.
+V0.2 adds the ChirpWise visual shell: rounded touch controls, splash screen, fixed bottom tabs, instant bird lookup, alphabetical study mode, quiz mode, local progress tracking, a progress ring, recent birds, and a needs-practice list. V0.2.2 adds real waveform metadata, live quiz playback progress, play/pause, and five-second seeking. V0.2.3 adds full Study/Listen browsing, letter filters, focused quiz packs, and custom quiz sets. V0.2.4 bundles the full clip catalog, keeps Northeast / Ohio Valley as the default region, and adds direct A-Z no-typing filters. V0.2.5 adds a bug-report email action and fuller quiz-source attribution for each revealed recording.
 
 ## Install On Android
 
@@ -72,5 +72,5 @@ android/app/build/outputs/apk/release/app-release.apk
 For local sharing, copy it to:
 
 ```text
-dist/android/ChirpWise-Full-v0.2.4.apk
+dist/android/ChirpWise-Full-v0.2.5.apk
 ```

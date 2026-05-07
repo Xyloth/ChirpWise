@@ -2,6 +2,7 @@ package com.xyflow.birdtrainer;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.Canvas;
@@ -11,6 +12,8 @@ import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -66,6 +69,7 @@ public class MainActivity extends Activity {
     private static final int RUST = Color.rgb(171, 97, 58);
     private static final int LINE = Color.rgb(88, 112, 57);
     private static final int MUTED = Color.rgb(184, 195, 145);
+    private static final String BUG_EMAIL = "founder@xyflowinnovations.com";
     private static final String PREF_QUIZ_PACK = "quiz_pack";
     private static final String PREF_CUSTOM_SPECIES = "custom_species";
     private static final String PREF_REGION_FILTER = "region_filter";
@@ -518,6 +522,11 @@ public class MainActivity extends Activity {
         card.addView(bigStat(speciesForSelectedRegion().size() + " in " + regionLabel(selectedRegion()), "Current browsing and quiz region."));
         card.addView(spacer(14));
 
+        Button bug = secondaryButton("Report a Bug");
+        bug.setOnClickListener(view -> openBugReportEmail());
+        card.addView(bug, fullButton());
+        card.addView(spacer(10));
+
         Button reset = creamButton("Reset progress");
         reset.setOnClickListener(view -> {
             prefs.edit().clear().apply();
@@ -531,6 +540,35 @@ public class MainActivity extends Activity {
 
     private void buildSettingsScreenAfterReset() {
         showScreen(Screen.SETTINGS);
+    }
+
+    private void openBugReportEmail() {
+        Intent intent = new Intent(Intent.ACTION_SENDTO);
+        intent.setData(Uri.parse("mailto:" + BUG_EMAIL));
+        intent.putExtra(Intent.EXTRA_SUBJECT, "ChirpWise Bug Report - Android v" + appVersionName());
+        intent.putExtra(Intent.EXTRA_TEXT,
+                "What happened:\n\n"
+                        + "Steps to reproduce:\n\n"
+                        + "Expected result:\n\n"
+                        + "Actual result:\n\n"
+                        + "App: ChirpWise v" + appVersionName() + "\n"
+                        + "Device: " + deviceSummary() + "\n");
+        try {
+            startActivity(Intent.createChooser(intent, "Report a Bug"));
+        } catch (Exception ignored) {
+        }
+    }
+
+    private String appVersionName() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception ignored) {
+            return "unknown";
+        }
+    }
+
+    private String deviceSummary() {
+        return Build.MANUFACTURER + " " + Build.MODEL + ", Android " + Build.VERSION.RELEASE;
     }
 
     private void addSearchBlock(LinearLayout parent, String title, ClipAction action) {
@@ -1317,12 +1355,20 @@ public class MainActivity extends Activity {
     private String revealText(boolean correct, Clip chosen) {
         String first = correct ? "Correct. That's " + currentQuizClip.commonName + "."
                 : "Not quite. That was " + currentQuizClip.commonName + ".";
+        String recording = currentQuizClip.sourceRecordingId.isEmpty()
+                ? "xeno-canto"
+                : "xeno-canto XC" + currentQuizClip.sourceRecordingId;
         return first
                 + "\n\nYou chose: " + chosen.commonName
+                + "\nSpecies: " + currentQuizClip.commonName
+                + "\nRecording: " + recording
                 + "\nSound: " + cleanSoundType(currentQuizClip.clipType)
                 + "\nPlace: " + currentQuizClip.location
                 + "\nRecordist: " + currentQuizClip.recordist
-                + "\nLicense: " + currentQuizClip.licenseName;
+                + "\nSource: " + safeValue(currentQuizClip.sourceUrl)
+                + "\nLicense: " + currentQuizClip.licenseName
+                + "\nLicense URL: " + safeValue(currentQuizClip.licenseUrl)
+                + "\nChanges: Trimmed to " + formatSeconds(currentQuizClip.clipLengthSeconds) + " for quiz use.";
     }
 
     private void playHiddenQuizClip() {
@@ -1573,6 +1619,20 @@ public class MainActivity extends Activity {
                 + "\n" + clip.location;
     }
 
+    private String safeValue(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return "Not provided";
+        }
+        return value;
+    }
+
+    private String formatSeconds(double seconds) {
+        if (seconds <= 0) {
+            return "about 20 seconds";
+        }
+        return String.format(Locale.US, "%.0f seconds", seconds);
+    }
+
     private String choiceLabel(int index, Clip option) {
         char letter = (char) ('A' + index);
         return letter + "   " + option.commonName + "\n" + option.scientificName;
@@ -1751,6 +1811,10 @@ public class MainActivity extends Activity {
         final String location;
         final String recordist;
         final String licenseName;
+        final String licenseUrl;
+        final String sourceRecordingId;
+        final String sourceUrl;
+        final double clipLengthSeconds;
         final Set<String> regions;
         final float[] waveform;
 
@@ -1765,6 +1829,10 @@ public class MainActivity extends Activity {
             location = item.optString("location", "Unknown location");
             recordist = item.optString("recordist", "Unknown recordist");
             licenseName = item.optString("licenseName", "Unknown license");
+            licenseUrl = item.optString("licenseUrl", "");
+            sourceRecordingId = item.optString("sourceRecordingId", "");
+            sourceUrl = item.optString("sourceUrl", "");
+            clipLengthSeconds = item.optDouble("clipLengthSeconds", 0.0);
             regions = new HashSet<>();
             JSONArray regionItems = item.optJSONArray("regions");
             if (regionItems != null) {

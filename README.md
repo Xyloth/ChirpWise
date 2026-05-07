@@ -48,7 +48,7 @@ The closest computer preview is the actual APK running in the Android emulator:
 That script starts the `ChirpWise_Preview` virtual phone, installs:
 
 ```text
-dist/android/ChirpWise-Full-v0.2.4.apk
+dist/android/ChirpWise-Full-v0.2.5.apk
 ```
 
 and launches ChirpWise. This is the same Android app experience the phone user sees.
@@ -113,6 +113,12 @@ Every recording row stores:
 - generated `attribution_text`
 
 The pipeline can skip derivative operations for NoDerivatives licenses and can filter NonCommercial licenses for commercial-safe builds.
+
+Current paid-app audit, using the conservative rule that every 20-second practice clip is modified/adapted:
+
+- 20 clips are app-safe for a paid trimmed build
+- 1,094 clips need replacement audio or recordist permission before a paid release
+- Full row-by-row audit: `docs/audits/commercial-license-audit.csv`
 
 ## Project Layout
 

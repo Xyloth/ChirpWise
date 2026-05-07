@@ -29,3 +29,26 @@ When `attach-original-clips` is used, the quiz plays the downloaded original rec
 Do not distribute a built dataset until `data/manifests/license_manifest.json` has been reviewed and the build policy matches the intended use.
 
 For a commercial-safe dataset, run query/build stages with `--commercial-build --exclude-nc`, and keep derivative operations restricted to licenses that permit derivatives.
+
+## Paid App Audit
+
+Run the commercial audit whenever bundled audio changes:
+
+```powershell
+python tools/license_audit.py
+```
+
+The current full offline Android pack has 1,114 real Xeno-canto clips. Under the conservative paid-app rule, where every 20-second practice clip is treated as modified/adapted:
+
+- 20 clips are safe for a paid trimmed build.
+- 1,094 clips need replacement audio or explicit recordist permission.
+- The safe set is CC0, CC BY, and CC BY-SA.
+- CC BY-SA is usable only if the adapted clip remains under the same ShareAlike terms.
+- NC licenses are excluded for paid distribution.
+- ND licenses are excluded because the app distributes trimmed clips.
+
+Audit outputs:
+
+- `docs/audits/commercial-license-audit.md`
+- `docs/audits/commercial-license-audit.csv`
+- `docs/audits/commercial-license-audit.json`
