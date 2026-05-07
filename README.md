@@ -1,4 +1,4 @@
-# Bird Sound Trainer
+# ChirpWise
 
 Local-first bird-sound trainer for building, browsing, and quizzing against a license-aware bird audio library.
 
@@ -39,7 +39,7 @@ The desktop shortcut created by `tools/create_desktop_shortcut.ps1` points to th
 - Local SQLite database with normalized species, recordings, clips, progress, attribution, and similarity tables.
 - Static desktop-style app UI: dashboard, browse/search, species detail, quiz, progress, coverage, attributions, and settings.
 - Local HTTP API with no external runtime dependencies.
-- Native Android APK project with an offline Northeast / Ohio Valley quiz pack.
+- Native Android APK project with an offline Northeast / Ohio Valley ChirpWise pack.
 - Data builder modules for taxonomy import, Xeno-canto querying, metadata persistence, audio conversion, clip generation, database build, and coverage reporting.
 - License policy checks that treat attribution, NC, ND, and derivative rules as first-class data.
 - Real Xeno-canto audio clips when the local dataset has been built with an API key.
@@ -128,10 +128,10 @@ Copy the entire `dist/BirdSoundTrainer/` folder to a flash drive. The executable
 The Android V1 app is a native offline APK with the `Northeast / Ohio Valley` pack bundled:
 
 ```text
-dist/android/BirdSoundTrainer-Northeast-v0.1.0.apk
+dist/android/ChirpWise-Northeast-v0.2.0.apk
 ```
 
-It currently contains 316 regional species and 346 real 20-second Xeno-canto clips. Build and sideload notes are in `docs/android.md`.
+It currently contains 316 regional species and 346 real 20-second Xeno-canto clips. The app has Listen, Quiz, Study, Progress, and Settings tabs. Build and sideload notes are in `docs/android.md`.
 
 ## License Hygiene
 
