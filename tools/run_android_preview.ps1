@@ -9,7 +9,7 @@ $env:PATH = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\cmdline-tools\latest\bin;$env:
 
 $adb = Join-Path $env:ANDROID_HOME "platform-tools\adb.exe"
 $emulator = Join-Path $env:ANDROID_HOME "emulator\emulator.exe"
-$apk = Join-Path $root "dist\android\ChirpWise-Northeast-v0.2.3.apk"
+$apk = Join-Path $root "dist\android\ChirpWise-Full-v0.2.4.apk"
 
 if (!(Test-Path $apk)) {
     throw "APK not found: $apk"

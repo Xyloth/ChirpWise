@@ -23,7 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build bundled Android quiz assets from the local bird database.")
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
     parser.add_argument("--assets", type=Path, default=DEFAULT_ASSETS)
-    parser.add_argument("--region", default="northeast")
+    parser.add_argument("--region", default="northeast", help="Region id to bundle, or 'all' for every species with clips.")
     parser.add_argument("--pack-name", default="Northeast / Ohio Valley")
     parser.add_argument("--clip-seconds", type=int, default=20)
     parser.add_argument("--clean", action="store_true")
@@ -78,6 +78,7 @@ def main() -> None:
                 "licenseUrl": row["license_url"] or "",
                 "attribution": row["attribution_text"] or attribution(row),
                 "sourceUrl": row["source_url"] or "",
+                "regions": regions(row["regions"]),
                 "waveform": waveform_peaks(source, ffmpeg),
             }
         )
@@ -99,29 +100,45 @@ def load_rows(db_path: Path, region: str) -> list[sqlite3.Row]:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     try:
+        base_query = """
+        SELECT
+          c.id AS clip_id,
+          c.clip_path,
+          c.clip_type,
+          c.difficulty,
+          s.id AS species_id,
+          s.common_name,
+          s.scientific_name,
+          s.family,
+          r.country,
+          r.location,
+          r.recordist,
+          r.license_name,
+          r.license_url,
+          r.attribution_text,
+          r.source_url,
+          COALESCE(regions.region_ids, '') AS regions
+        FROM clips c
+        JOIN species s ON s.id = c.species_id
+        LEFT JOIN recordings r ON r.id = c.recording_id
+        LEFT JOIN (
+          SELECT species_id, group_concat(region_id) AS region_ids
+          FROM species_region_membership
+          GROUP BY species_id
+        ) regions ON regions.species_id = s.id
+        """
+        if region == "all":
+            return conn.execute(
+                base_query + " ORDER BY s.common_name COLLATE NOCASE"
+            ).fetchall()
         return conn.execute(
-            """
-            SELECT
-              c.id AS clip_id,
-              c.clip_path,
-              c.clip_type,
-              c.difficulty,
-              s.id AS species_id,
-              s.common_name,
-              s.scientific_name,
-              s.family,
-              r.country,
-              r.location,
-              r.recordist,
-              r.license_name,
-              r.license_url,
-              r.attribution_text,
-              r.source_url
-            FROM clips c
-            JOIN species s ON s.id = c.species_id
-            JOIN species_region_membership m ON m.species_id = s.id
-            LEFT JOIN recordings r ON r.id = c.recording_id
-            WHERE m.region_id = ?
+            base_query
+            + """
+            WHERE EXISTS (
+              SELECT 1
+              FROM species_region_membership m
+              WHERE m.species_id = s.id AND m.region_id = ?
+            )
             ORDER BY s.common_name COLLATE NOCASE
             """,
             (region,),
@@ -135,6 +152,12 @@ def attribution(row: sqlite3.Row) -> str:
     recordist = row["recordist"] or "unknown recordist"
     license_name = row["license_name"] or "unknown license"
     return f"{row['common_name']} recording; recorded by {recordist}; licensed {license_name}; {source}"
+
+
+def regions(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return sorted({item.strip() for item in value.split(",") if item.strip()})
 
 
 def waveform_peaks(source: Path, ffmpeg: str) -> list[float]:

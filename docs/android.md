@@ -1,24 +1,25 @@
 # Android Build
 
-The Android V1 app is a native Java APK with the `Northeast / Ohio Valley` pack bundled for offline use. It does not need a server, internet access, Python, or Xeno-canto at runtime.
+The Android V1 app is a native Java APK with the full bird-sound pack bundled for offline use. Northeast / Ohio Valley is selected by default, but the app also includes an `All birds` tab. It does not need a server, internet access, Python, or Xeno-canto at runtime.
 
 Current local artifact:
 
 ```text
-dist/android/ChirpWise-Northeast-v0.2.3.apk
+dist/android/ChirpWise-Full-v0.2.4.apk
 ```
 
 Current bundled pack:
 
-- Region: `Northeast / Ohio Valley`
-- Species: 316
-- Clips: 346
+- Default region: `Northeast / Ohio Valley`
+- Default region species: 316
+- Full app species with clips: 1,084
+- Clips: 1,114
 - Clip length: 20 seconds
 - Audio source: real Xeno-canto recordings
-- APK size: about 81 MB
+- APK size: about 265 MB
 - Android support: API 23+ / Android 6.0+
 
-V0.2 adds the ChirpWise visual shell: rounded touch controls, splash screen, fixed bottom tabs, instant bird lookup, alphabetical study mode, quiz mode, local progress tracking, a progress ring, recent birds, and a needs-practice list. V0.2.2 adds real waveform metadata, live quiz playback progress, play/pause, and five-second seeking. V0.2.3 adds full Study/Listen browsing, letter filters, focused quiz packs, and custom quiz sets.
+V0.2 adds the ChirpWise visual shell: rounded touch controls, splash screen, fixed bottom tabs, instant bird lookup, alphabetical study mode, quiz mode, local progress tracking, a progress ring, recent birds, and a needs-practice list. V0.2.2 adds real waveform metadata, live quiz playback progress, play/pause, and five-second seeking. V0.2.3 adds full Study/Listen browsing, letter filters, focused quiz packs, and custom quiz sets. V0.2.4 bundles the full clip catalog, keeps Northeast / Ohio Valley as the default region, and adds direct A-Z no-typing filters.
 
 ## Install On Android
 
@@ -58,7 +59,7 @@ $env:PATH = "$env:JAVA_HOME/bin;$base/gradle-8.10.2/bin;$env:ANDROID_HOME/platfo
 python tools/update_region_membership_from_xeno.py --region northeast
 python tools/backfill_region_audio.py --region northeast
 python tools/create_training_clips.py --seconds 20 --bitrate 96k
-python tools/build_android_assets.py --region northeast --pack-name "Northeast / Ohio Valley" --clean
+python tools/build_android_assets.py --region all --pack-name "Full bird pack / Northeast focus" --clean
 gradle -p android assembleRelease
 ```
 
@@ -71,5 +72,5 @@ android/app/build/outputs/apk/release/app-release.apk
 For local sharing, copy it to:
 
 ```text
-dist/android/ChirpWise-Northeast-v0.2.3.apk
+dist/android/ChirpWise-Full-v0.2.4.apk
 ```

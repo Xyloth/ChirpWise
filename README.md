@@ -10,8 +10,8 @@ This project is built as a production-shaped portfolio piece, not a static demo.
 
 - Native Android UI built around fast field use: Listen, Quiz, Study, Progress, and Settings.
 - Quiz playback controls with play/pause, five-second seeking, and real per-clip waveform progress.
-- Focused practice packs and custom quiz sets for drilling smaller groups of birds.
-- Real Xeno-canto bird recordings bundled into a local Northeast / Ohio Valley training pack.
+- Region tabs, direct alphabet filters, focused practice packs, and custom quiz sets for drilling smaller groups of birds.
+- Real Xeno-canto bird recordings bundled into a full offline pack, with Northeast / Ohio Valley selected by default.
 - License-aware ingestion that preserves recordist, source URL, Creative Commons license, and attribution for every clip.
 - A repeatable data pipeline for taxonomy import, Xeno-canto metadata search, audio download, 20-second clip generation, regional pack assembly, and coverage reporting.
 - Local progress tracking by species, including known birds, weak birds, unseen birds, recent birds, and streak.
@@ -25,10 +25,12 @@ The product spine is:
 taxonomy -> audio acquisition -> license tracking -> normalized library -> mobile UI -> quiz engine
 ```
 
-The current Android build ships the `Northeast / Ohio Valley` pack:
+The current Android build ships the full offline pack with `Northeast / Ohio Valley` as the default working region:
 
-- 316 regional species
-- 346 real 20-second Xeno-canto clips
+- 1,084 bird species with real recordings
+- 1,114 real 20-second Xeno-canto clips
+- 316 Northeast / Ohio Valley species in the default region tab
+- 1,084 species available from the `All birds` tab
 - Offline playback
 - Android 6.0+ support
 - Self-contained APK
@@ -46,7 +48,7 @@ The closest computer preview is the actual APK running in the Android emulator:
 That script starts the `ChirpWise_Preview` virtual phone, installs:
 
 ```text
-dist/android/ChirpWise-Northeast-v0.2.3.apk
+dist/android/ChirpWise-Full-v0.2.4.apk
 ```
 
 and launches ChirpWise. This is the same Android app experience the phone user sees.
@@ -78,7 +80,7 @@ $env:XENO_CANTO_API_KEY = "your-key"
 python tools/update_region_membership_from_xeno.py --region northeast
 python tools/backfill_region_audio.py --region northeast
 python tools/create_training_clips.py --seconds 20 --bitrate 96k
-python tools/build_android_assets.py --region northeast --pack-name "Northeast / Ohio Valley" --clean
+python tools/build_android_assets.py --region all --pack-name "Full bird pack / Northeast focus" --clean
 ```
 
 Xeno-canto API v3 requires a registered account and verified email. Do not commit the API key.

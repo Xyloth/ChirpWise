@@ -68,6 +68,12 @@ public class MainActivity extends Activity {
     private static final int MUTED = Color.rgb(184, 195, 145);
     private static final String PREF_QUIZ_PACK = "quiz_pack";
     private static final String PREF_CUSTOM_SPECIES = "custom_species";
+    private static final String PREF_REGION_FILTER = "region_filter";
+    private static final String REGION_NORTHEAST = "northeast";
+    private static final String REGION_ALL = "all";
+    private static final String REGION_CENTRAL = "central";
+    private static final String REGION_SOUTHEAST = "southeast";
+    private static final String REGION_WEST = "west";
     private static final String PACK_ALL = "all";
     private static final String PACK_BACKYARD = "backyard";
     private static final String PACK_WARBLERS = "warblers";
@@ -317,6 +323,7 @@ public class MainActivity extends Activity {
         hero.addView(tag);
 
         TextView region = chip("Northeast / Ohio Valley");
+        region.setText(regionLabel(selectedRegion()));
         region.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams regionParams = new LinearLayout.LayoutParams(wrap(), dp(34));
         regionParams.setMargins(0, dp(14), 0, 0);
@@ -355,6 +362,9 @@ public class MainActivity extends Activity {
         listenNowPlaying.setTextColor(CREAM_2);
         actions.addView(listenNowPlaying);
         content.addView(actions, fullWidth());
+        content.addView(spacer(14));
+
+        addRegionTabs(content);
         content.addView(spacer(14));
 
         addSearchBlock(content, "Quick sound finder", clip -> {
@@ -452,6 +462,9 @@ public class MainActivity extends Activity {
         content.addView(intro, fullWidth());
         content.addView(spacer(14));
 
+        addRegionTabs(content);
+        content.addView(spacer(14));
+
         addSearchBlock(content, "Find a bird", clip -> {
             lastPlayedClip = clip;
             studyNowPlaying.setText(nowPlayingText(clip));
@@ -496,11 +509,13 @@ public class MainActivity extends Activity {
     private void buildSettingsScreen() {
         LinearLayout card = panel(20, false);
         card.addView(sectionTitle("Settings"));
-        card.addView(body("ChirpWise is using the offline Northeast / Ohio Valley pack."));
+        card.addView(body("ChirpWise is using the offline full bird pack with Northeast / Ohio Valley selected by default."));
         card.addView(spacer(12));
-        card.addView(bigStat(speciesCount + " species", "Regional birds with real Xeno-canto recordings."));
+        card.addView(bigStat(speciesCount + " species", "Birds with real Xeno-canto recordings in the bundled app."));
         card.addView(spacer(8));
         card.addView(bigStat(clips.size() + " clips", "20-second practice sounds bundled in the app."));
+        card.addView(spacer(8));
+        card.addView(bigStat(speciesForSelectedRegion().size() + " in " + regionLabel(selectedRegion()), "Current browsing and quiz region."));
         card.addView(spacer(14));
 
         Button reset = creamButton("Reset progress");
@@ -522,6 +537,41 @@ public class MainActivity extends Activity {
         addBirdBrowseBlock(parent, title, clip -> birdRow(clip, action));
     }
 
+    private void addRegionTabs(LinearLayout parent) {
+        LinearLayout card = panel(18, false);
+        card.addView(sectionTitle("Region"));
+        card.addView(spacer(8));
+        addRegionRow(card, REGION_NORTHEAST, REGION_ALL);
+        addRegionRow(card, REGION_CENTRAL, REGION_SOUTHEAST);
+        addRegionRow(card, REGION_WEST, null);
+        parent.addView(card, fullWidth());
+    }
+
+    private void addRegionRow(LinearLayout card, String leftKey, String rightKey) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.addView(regionButton(leftKey), new LinearLayout.LayoutParams(0, dp(48), 1f));
+        if (rightKey != null) {
+            LinearLayout.LayoutParams spacer = new LinearLayout.LayoutParams(dp(8), 1);
+            row.addView(new View(this), spacer);
+            row.addView(regionButton(rightKey), new LinearLayout.LayoutParams(0, dp(48), 1f));
+        }
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(match(), dp(48));
+        params.setMargins(0, 0, 0, dp(8));
+        card.addView(row, params);
+    }
+
+    private Button regionButton(String key) {
+        boolean selected = key.equals(selectedRegion());
+        Button button = selected ? creamButton(regionShortLabel(key) + "\n" + speciesCountForRegion(key)) : secondaryButton(regionShortLabel(key) + "\n" + speciesCountForRegion(key));
+        button.setTextSize(12);
+        button.setOnClickListener(view -> {
+            prefs.edit().putString(PREF_REGION_FILTER, key).apply();
+            showScreen(currentScreen);
+        });
+        return button;
+    }
+
     private void addBirdBrowseBlock(LinearLayout parent, String title, ClipRowFactory rowFactory) {
         LinearLayout card = panel(20, false);
         card.addView(sectionTitle(title));
@@ -540,21 +590,33 @@ public class MainActivity extends Activity {
         card.addView(spacer(12));
 
         LinearLayout letters = new LinearLayout(this);
-        letters.setOrientation(LinearLayout.HORIZONTAL);
-        letters.setGravity(Gravity.CENTER);
-        String[] ranges = {"All", "A-C", "D-H", "I-M", "N-R", "S-Z"};
-        final String[] activeRange = {ranges[0]};
-        for (String range : ranges) {
-            TextView chip = chip(range);
+        letters.setOrientation(LinearLayout.VERTICAL);
+        String[] lettersAndAll = {"All", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"};
+        final String[] activeLetter = {"A"};
+        LinearLayout letterRow = null;
+        for (int i = 0; i < lettersAndAll.length; i++) {
+            if (i % 7 == 0) {
+                letterRow = new LinearLayout(this);
+                letterRow.setOrientation(LinearLayout.HORIZONTAL);
+                letterRow.setGravity(Gravity.CENTER);
+                LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(match(), dp(38));
+                rowParams.setMargins(0, 0, 0, dp(6));
+                letters.addView(letterRow, rowParams);
+            }
+            String letter = lettersAndAll[i];
+            TextView chip = chip(letter);
             chip.setGravity(Gravity.CENTER);
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(38), 1f);
             params.setMargins(dp(2), 0, dp(2), 0);
-            letters.addView(chip, params);
+            if (letterRow != null) {
+                letterRow.addView(chip, params);
+            }
             chip.setOnClickListener(view -> {
-                activeRange[0] = range;
+                activeLetter[0] = letter;
+                search.setText("");
                 hideKeyboard(search);
                 search.clearFocus();
-                fillBirdResults((LinearLayout) card.findViewWithTag("bird_results"), search.getText().toString(), activeRange[0], rowFactory);
+                fillBirdResults((LinearLayout) card.findViewWithTag("bird_results"), "", activeLetter[0], rowFactory);
             });
         }
         card.addView(letters, fullWidth());
@@ -573,7 +635,7 @@ public class MainActivity extends Activity {
         card.addView(results);
         parent.addView(card, fullWidth());
 
-        Runnable refresh = () -> fillBirdResults(results, search.getText().toString(), activeRange[0], rowFactory);
+        Runnable refresh = () -> fillBirdResults(results, search.getText().toString(), activeLetter[0], rowFactory);
         search.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -591,17 +653,17 @@ public class MainActivity extends Activity {
         refresh.run();
     }
 
-    private void fillBirdResults(LinearLayout results, String query, String range, ClipRowFactory rowFactory) {
+    private void fillBirdResults(LinearLayout results, String query, String activeLetter, ClipRowFactory rowFactory) {
         results.removeAllViews();
         String needle = query.trim().toLowerCase(Locale.US);
         int shown = 0;
-        for (Clip clip : speciesClips) {
+        for (Clip clip : speciesForSelectedRegion()) {
             if (!needle.isEmpty()
                     && !clip.commonName.toLowerCase(Locale.US).contains(needle)
                     && !clip.scientificName.toLowerCase(Locale.US).contains(needle)) {
                 continue;
             }
-            if (!letterMatches(clip, range)) {
+            if (needle.isEmpty() && !letterMatches(clip, activeLetter)) {
                 continue;
             }
             results.addView(rowFactory.create(clip), fullWidth());
@@ -617,27 +679,12 @@ public class MainActivity extends Activity {
         }
     }
 
-    private boolean letterMatches(Clip clip, String range) {
-        if (range == null || range.equals("All") || clip.commonName.isEmpty()) {
+    private boolean letterMatches(Clip clip, String activeLetter) {
+        if (activeLetter == null || activeLetter.equals("All") || clip.commonName.isEmpty()) {
             return true;
         }
         char first = Character.toUpperCase(clip.commonName.charAt(0));
-        if (range.equals("A-C")) {
-            return first >= 'A' && first <= 'C';
-        }
-        if (range.equals("D-H")) {
-            return first >= 'D' && first <= 'H';
-        }
-        if (range.equals("I-M")) {
-            return first >= 'I' && first <= 'M';
-        }
-        if (range.equals("N-R")) {
-            return first >= 'N' && first <= 'R';
-        }
-        if (range.equals("S-Z")) {
-            return first >= 'S' && first <= 'Z';
-        }
-        return true;
+        return String.valueOf(first).equals(activeLetter);
     }
 
     private LinearLayout birdRow(Clip clip, ClipAction action) {
@@ -689,6 +736,12 @@ public class MainActivity extends Activity {
 
     private void addQuizPackPanel() {
         LinearLayout card = panel(20, false);
+        card.addView(sectionTitle("Region"));
+        addRegionRow(card, REGION_NORTHEAST, REGION_ALL);
+        addRegionRow(card, REGION_CENTRAL, REGION_SOUTHEAST);
+        addRegionRow(card, REGION_WEST, null);
+        card.addView(spacer(8));
+
         card.addView(sectionTitle("Practice packs"));
         card.addView(body("Use a smaller loop when you want repetition. The quiz still favors misses and learning birds inside the active pack."));
         card.addView(spacer(10));
@@ -801,6 +854,63 @@ public class MainActivity extends Activity {
         return prefs.getString(PREF_QUIZ_PACK, PACK_BACKYARD);
     }
 
+    private String selectedRegion() {
+        return prefs.getString(PREF_REGION_FILTER, REGION_NORTHEAST);
+    }
+
+    private ArrayList<Clip> speciesForSelectedRegion() {
+        return speciesForRegion(selectedRegion());
+    }
+
+    private ArrayList<Clip> speciesForRegion(String region) {
+        if (REGION_ALL.equals(region)) {
+            return new ArrayList<>(speciesClips);
+        }
+        ArrayList<Clip> birds = new ArrayList<>();
+        for (Clip clip : speciesClips) {
+            if (clip.regions.contains(region)) {
+                birds.add(clip);
+            }
+        }
+        return birds;
+    }
+
+    private int speciesCountForRegion(String region) {
+        return speciesForRegion(region).size();
+    }
+
+    private String regionLabel(String region) {
+        if (REGION_ALL.equals(region)) {
+            return "All birds";
+        }
+        if (REGION_CENTRAL.equals(region)) {
+            return "Central";
+        }
+        if (REGION_SOUTHEAST.equals(region)) {
+            return "Southeast";
+        }
+        if (REGION_WEST.equals(region)) {
+            return "West";
+        }
+        return "Northeast / Ohio Valley";
+    }
+
+    private String regionShortLabel(String region) {
+        if (REGION_ALL.equals(region)) {
+            return "All";
+        }
+        if (REGION_CENTRAL.equals(region)) {
+            return "Central";
+        }
+        if (REGION_SOUTHEAST.equals(region)) {
+            return "Southeast";
+        }
+        if (REGION_WEST.equals(region)) {
+            return "West";
+        }
+        return "NE / Ohio";
+    }
+
     private ArrayList<Clip> activeQuizSpecies() {
         return packMembers(selectedQuizPack());
     }
@@ -808,7 +918,7 @@ public class MainActivity extends Activity {
     private ArrayList<Clip> packMembers(String key) {
         ArrayList<Clip> birds = new ArrayList<>();
         Set<Integer> customIds = PACK_CUSTOM.equals(key) ? customSpeciesIds() : new HashSet<>();
-        for (Clip clip : speciesClips) {
+        for (Clip clip : speciesForSelectedRegion()) {
             if (PACK_CUSTOM.equals(key)) {
                 if (customIds.contains(clip.speciesId)) {
                     birds.add(clip);
@@ -1641,6 +1751,7 @@ public class MainActivity extends Activity {
         final String location;
         final String recordist;
         final String licenseName;
+        final Set<String> regions;
         final float[] waveform;
 
         Clip(JSONObject item) throws Exception {
@@ -1654,6 +1765,13 @@ public class MainActivity extends Activity {
             location = item.optString("location", "Unknown location");
             recordist = item.optString("recordist", "Unknown recordist");
             licenseName = item.optString("licenseName", "Unknown license");
+            regions = new HashSet<>();
+            JSONArray regionItems = item.optJSONArray("regions");
+            if (regionItems != null) {
+                for (int i = 0; i < regionItems.length(); i++) {
+                    regions.add(regionItems.optString(i, ""));
+                }
+            }
             JSONArray waveformItems = item.optJSONArray("waveform");
             if (waveformItems == null || waveformItems.length() == 0) {
                 waveform = new float[0];
