@@ -9,6 +9,7 @@ ChirpWise is an offline bird-sound trainer for Android and desktop preview workf
 This project is built as a production-shaped portfolio piece, not a static demo. It covers:
 
 - Native Android UI built around fast field use: Listen, Quiz, Study, Progress, and Settings.
+- Quiz playback controls with play/pause, five-second seeking, and real per-clip waveform progress.
 - Real Xeno-canto bird recordings bundled into a local Northeast / Ohio Valley training pack.
 - License-aware ingestion that preserves recordist, source URL, Creative Commons license, and attribution for every clip.
 - A repeatable data pipeline for taxonomy import, Xeno-canto metadata search, audio download, 20-second clip generation, regional pack assembly, and coverage reporting.
@@ -44,7 +45,7 @@ The closest computer preview is the actual APK running in the Android emulator:
 That script starts the `ChirpWise_Preview` virtual phone, installs:
 
 ```text
-dist/android/ChirpWise-Northeast-v0.2.1.apk
+dist/android/ChirpWise-Northeast-v0.2.2.apk
 ```
 
 and launches ChirpWise. This is the same Android app experience the phone user sees.

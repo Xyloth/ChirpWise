@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 import argparse
+import array
 import json
+import math
 import shutil
 import sqlite3
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+import imageio_ffmpeg
 
 
 DEFAULT_DB = Path("data/app/birdtrainer.sqlite3")
 DEFAULT_ASSETS = Path("android/app/src/main/assets")
+WAVEFORM_BARS = 64
 
 
 def parse_args() -> argparse.Namespace:
@@ -40,6 +47,7 @@ def main() -> None:
     rows = load_rows(db_path, args.region)
     clips = []
     copied = 0
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
 
     for row in rows:
         source = Path(row["clip_path"])
@@ -70,6 +78,7 @@ def main() -> None:
                 "licenseUrl": row["license_url"] or "",
                 "attribution": row["attribution_text"] or attribution(row),
                 "sourceUrl": row["source_url"] or "",
+                "waveform": waveform_peaks(source, ffmpeg),
             }
         )
 
@@ -126,6 +135,58 @@ def attribution(row: sqlite3.Row) -> str:
     recordist = row["recordist"] or "unknown recordist"
     license_name = row["license_name"] or "unknown license"
     return f"{row['common_name']} recording; recorded by {recordist}; licensed {license_name}; {source}"
+
+
+def waveform_peaks(source: Path, ffmpeg: str) -> list[float]:
+    command = [
+        ffmpeg,
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        str(source),
+        "-vn",
+        "-f",
+        "s16le",
+        "-acodec",
+        "pcm_s16le",
+        "-ac",
+        "1",
+        "-ar",
+        "8000",
+        "pipe:1",
+    ]
+    try:
+        result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError:
+        return []
+
+    samples = array.array("h")
+    samples.frombytes(result.stdout)
+    if sys.byteorder != "little":
+        samples.byteswap()
+    if not samples:
+        return []
+
+    bin_size = max(1, math.ceil(len(samples) / WAVEFORM_BARS))
+    peaks: list[float] = []
+    for start in range(0, len(samples), bin_size):
+        chunk = samples[start : min(start + bin_size, len(samples))]
+        if not chunk:
+            peaks.append(0.0)
+            continue
+        square_sum = sum(sample * sample for sample in chunk)
+        peaks.append(math.sqrt(square_sum / len(chunk)) / 32768.0)
+        if len(peaks) >= WAVEFORM_BARS:
+            break
+
+    while len(peaks) < WAVEFORM_BARS:
+        peaks.append(0.0)
+
+    maximum = max(peaks)
+    if maximum <= 0:
+        return peaks
+    return [round(min(1.0, value / maximum), 3) for value in peaks]
 
 
 if __name__ == "__main__":

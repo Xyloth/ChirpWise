@@ -26,7 +26,6 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -66,6 +65,15 @@ public class MainActivity extends Activity {
     private static final int MUTED = Color.rgb(184, 195, 145);
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable playbackTicker = new Runnable() {
+        @Override
+        public void run() {
+            updateQuizWaveformProgress();
+            if (isCurrentClipPlaying()) {
+                handler.postDelayed(this, 80);
+            }
+        }
+    };
     private final Random random = new Random();
     private final ArrayList<Clip> clips = new ArrayList<>();
     private final ArrayList<Clip> speciesClips = new ArrayList<>();
@@ -75,6 +83,7 @@ public class MainActivity extends Activity {
 
     private SharedPreferences prefs;
     private MediaPlayer player;
+    private Clip activeClip;
     private LinearLayout content;
     private Screen currentScreen = Screen.LISTEN;
     private Clip currentQuizClip;
@@ -84,6 +93,7 @@ public class MainActivity extends Activity {
     private TextView listenNowPlaying;
     private TextView studyNowPlaying;
     private WaveformView quizWaveform;
+    private Button quizPlayPauseButton;
     private int speciesCount = 0;
 
     @Override
@@ -331,9 +341,6 @@ public class MainActivity extends Activity {
             listenNowPlaying.setText(nowPlayingText(clip));
             playClip(clip);
         });
-
-        content.addView(spacer(14));
-        addTipCard();
     }
 
     private void buildQuizScreen() {
@@ -347,9 +354,25 @@ public class MainActivity extends Activity {
         quizWaveform.setColors(LEAF, Color.argb(55, 137, 160, 61));
         card.addView(quizWaveform, new LinearLayout.LayoutParams(match(), dp(74)));
 
-        Button listen = primaryButton("Listen");
-        listen.setOnClickListener(view -> playHiddenQuizClip());
-        card.addView(listen, fullButton());
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.HORIZONTAL);
+        controls.setGravity(Gravity.CENTER);
+
+        Button back = secondaryButton("-5s");
+        back.setOnClickListener(view -> seekQuizBy(-5000));
+        controls.addView(back, new LinearLayout.LayoutParams(0, dp(58), 0.72f));
+
+        quizPlayPauseButton = primaryButton("Play");
+        quizPlayPauseButton.setOnClickListener(view -> toggleQuizPlayback());
+        LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(0, dp(58), 1.35f);
+        playParams.setMargins(dp(8), 0, dp(8), 0);
+        controls.addView(quizPlayPauseButton, playParams);
+
+        Button forward = secondaryButton("+5s");
+        forward.setOnClickListener(view -> seekQuizBy(5000));
+        controls.addView(forward, new LinearLayout.LayoutParams(0, dp(58), 0.72f));
+
+        card.addView(controls, fullWidth());
         card.addView(spacer(10));
 
         quizPrompt = text("Which bird is this?", 20, Typeface.BOLD, CREAM);
@@ -374,8 +397,6 @@ public class MainActivity extends Activity {
         Button next = secondaryButton("Next bird");
         next.setOnClickListener(view -> nextQuestion());
         content.addView(next, fullButton());
-        content.addView(spacer(14));
-        addTipCard();
         nextQuestion();
     }
 
@@ -444,7 +465,6 @@ public class MainActivity extends Activity {
         Button reset = creamButton("Reset progress");
         reset.setOnClickListener(view -> {
             prefs.edit().clear().apply();
-            Toast.makeText(this, "Progress reset", Toast.LENGTH_SHORT).show();
             buildSettingsScreenAfterReset();
         });
         card.addView(reset, fullButton());
@@ -544,19 +564,6 @@ public class MainActivity extends Activity {
         return row;
     }
 
-    private void addTipCard() {
-        String[] tips = {
-                "Tip: Focus on rhythm and notes, not just speed.",
-                "Tip: Replay once, then answer from memory.",
-                "Tip: Similar birds usually differ in tempo, pitch, or phrase shape.",
-                "Tip: Study one family at a time when the choices feel close."
-        };
-        LinearLayout tip = panel(18, false);
-        tip.setPadding(dp(16), dp(14), dp(16), dp(14));
-        tip.addView(body(tips[random.nextInt(tips.length)]));
-        content.addView(tip, fullWidth());
-    }
-
     private void addBirdList(String title, ArrayList<Clip> birds, int limit) {
         LinearLayout card = panel(20, false);
         card.addView(sectionTitle(title));
@@ -582,6 +589,9 @@ public class MainActivity extends Activity {
         stopAudio();
         currentQuizClip = pickQuizClip();
         quizWaveform.setSeed(currentQuizClip.clipId);
+        quizWaveform.setPeaks(currentQuizClip.waveform);
+        quizWaveform.setProgress(0f);
+        updateQuizPlayPauseButton();
         quizReveal.setVisibility(View.GONE);
         quizPrompt.setText("Which bird is this?");
 
@@ -769,14 +779,10 @@ public class MainActivity extends Activity {
     }
 
     private void playHiddenQuizClip() {
-        playClip(currentQuizClip, false);
+        playClip(currentQuizClip);
     }
 
     private void playClip(Clip clip) {
-        playClip(clip, true);
-    }
-
-    private void playClip(Clip clip, boolean showName) {
         if (clip == null) {
             return;
         }
@@ -785,20 +791,74 @@ public class MainActivity extends Activity {
         try {
             AssetFileDescriptor descriptor = getAssets().openFd(clip.audio);
             player = new MediaPlayer();
+            activeClip = clip;
             player.setDataSource(descriptor.getFileDescriptor(), descriptor.getStartOffset(), descriptor.getLength());
             descriptor.close();
-            player.setOnCompletionListener(mp -> stopAudio());
+            player.setOnCompletionListener(mp -> {
+                Clip finished = activeClip;
+                stopAudio();
+                if (finished == currentQuizClip && quizWaveform != null) {
+                    quizWaveform.setProgress(1f);
+                }
+            });
             player.prepare();
             player.start();
-            if (showName) {
-                Toast.makeText(this, "Playing " + clip.commonName, Toast.LENGTH_SHORT).show();
-            }
+            startPlaybackTicker();
+            updateQuizPlayPauseButton();
         } catch (Exception exception) {
-            Toast.makeText(this, "Could not play this clip", Toast.LENGTH_SHORT).show();
+            stopAudio();
+            showPlaybackError();
+        }
+    }
+
+    private void toggleQuizPlayback() {
+        if (currentQuizClip == null) {
+            return;
+        }
+        if (player != null && activeClip == currentQuizClip) {
+            try {
+                if (player.isPlaying()) {
+                    player.pause();
+                    updateQuizWaveformProgress();
+                    updateQuizPlayPauseButton();
+                    return;
+                }
+                player.start();
+                startPlaybackTicker();
+                updateQuizPlayPauseButton();
+                return;
+            } catch (IllegalStateException ignored) {
+                stopAudio();
+            }
+        }
+        playHiddenQuizClip();
+    }
+
+    private void seekQuizBy(int deltaMillis) {
+        if (currentQuizClip == null) {
+            return;
+        }
+        if (player == null || activeClip != currentQuizClip) {
+            playHiddenQuizClip();
+        }
+        if (player == null) {
+            return;
+        }
+        try {
+            int duration = Math.max(1, player.getDuration());
+            int target = player.getCurrentPosition() + deltaMillis;
+            target = Math.max(0, Math.min(duration - 250, target));
+            player.seekTo(target);
+            updateQuizWaveformProgress();
+            startPlaybackTicker();
+            updateQuizPlayPauseButton();
+        } catch (IllegalStateException ignored) {
+            stopAudio();
         }
     }
 
     private void stopAudio() {
+        handler.removeCallbacks(playbackTicker);
         if (player != null) {
             try {
                 player.stop();
@@ -806,6 +866,52 @@ public class MainActivity extends Activity {
             }
             player.release();
             player = null;
+        }
+        activeClip = null;
+        updateQuizPlayPauseButton();
+    }
+
+    private void startPlaybackTicker() {
+        handler.removeCallbacks(playbackTicker);
+        updateQuizWaveformProgress();
+        handler.postDelayed(playbackTicker, 80);
+    }
+
+    private void updateQuizWaveformProgress() {
+        if (quizWaveform == null || player == null || activeClip != currentQuizClip) {
+            return;
+        }
+        try {
+            int duration = Math.max(1, player.getDuration());
+            quizWaveform.setProgress(Math.max(0f, Math.min(1f, player.getCurrentPosition() / (float) duration)));
+        } catch (IllegalStateException ignored) {
+        }
+    }
+
+    private boolean isCurrentClipPlaying() {
+        if (player == null || activeClip != currentQuizClip) {
+            return false;
+        }
+        try {
+            return player.isPlaying();
+        } catch (IllegalStateException exception) {
+            return false;
+        }
+    }
+
+    private void updateQuizPlayPauseButton() {
+        if (quizPlayPauseButton != null) {
+            quizPlayPauseButton.setText(isCurrentClipPlaying() ? "Pause" : "Play");
+        }
+    }
+
+    private void showPlaybackError() {
+        if (currentScreen == Screen.LISTEN && listenNowPlaying != null) {
+            listenNowPlaying.setText("Could not play this clip.");
+        } else if (currentScreen == Screen.STUDY && studyNowPlaying != null) {
+            studyNowPlaying.setText("Could not play this clip.");
+        } else if (currentScreen == Screen.QUIZ && quizPrompt != null) {
+            quizPrompt.setText("Could not play this clip.");
         }
     }
 
@@ -1079,6 +1185,7 @@ public class MainActivity extends Activity {
         final String location;
         final String recordist;
         final String licenseName;
+        final float[] waveform;
 
         Clip(JSONObject item) throws Exception {
             clipId = item.getInt("clipId");
@@ -1091,6 +1198,15 @@ public class MainActivity extends Activity {
             location = item.optString("location", "Unknown location");
             recordist = item.optString("recordist", "Unknown recordist");
             licenseName = item.optString("licenseName", "Unknown license");
+            JSONArray waveformItems = item.optJSONArray("waveform");
+            if (waveformItems == null || waveformItems.length() == 0) {
+                waveform = new float[0];
+            } else {
+                waveform = new float[waveformItems.length()];
+                for (int i = 0; i < waveformItems.length(); i++) {
+                    waveform[i] = (float) waveformItems.optDouble(i, 0.0);
+                }
+            }
         }
     }
 
@@ -1099,6 +1215,8 @@ public class MainActivity extends Activity {
         private int seed = 7;
         private int barColor = LEAF;
         private int fillColor = Color.TRANSPARENT;
+        private float progress = 0f;
+        private float[] peaks = new float[0];
 
         public WaveformView(android.content.Context context) {
             super(context);
@@ -1106,6 +1224,16 @@ public class MainActivity extends Activity {
 
         public void setSeed(int seed) {
             this.seed = seed;
+            invalidate();
+        }
+
+        public void setPeaks(float[] peaks) {
+            this.peaks = peaks == null ? new float[0] : peaks;
+            invalidate();
+        }
+
+        public void setProgress(float progress) {
+            this.progress = Math.max(0f, Math.min(1f, progress));
             invalidate();
         }
 
@@ -1124,22 +1252,38 @@ public class MainActivity extends Activity {
             paint.setColor(fillColor);
             canvas.drawRoundRect(0, 0, width, height, height / 3f, height / 3f, paint);
 
-            paint.setColor(barColor);
             paint.setStrokeCap(Paint.Cap.ROUND);
             paint.setStrokeWidth(Math.max(4f, width / 90f));
-            int bars = 28;
+            int bars = peaks.length > 0 ? peaks.length : 28;
             float gap = width / (float) (bars + 2);
             float center = height / 2f;
             for (int i = 0; i < bars; i++) {
-                int mixed = Math.abs((seed + 31) * (i + 9) * 1103515245);
-                float wave = 0.28f + (mixed % 100) / 145f;
-                if (i % 7 == 0) {
-                    wave *= 1.25f;
-                }
-                float half = Math.min(height * 0.42f, height * wave * 0.42f);
+                float wave = peaks.length > 0 ? peaks[i] : generatedWave(i);
+                float half = Math.min(height * 0.42f, height * Math.max(0.12f, wave) * 0.42f);
                 float x = gap * (i + 1.5f);
+                paint.setColor(barColorForIndex(i, bars));
                 canvas.drawLine(x, center - half, x, center + half, paint);
             }
+        }
+
+        private float generatedWave(int index) {
+            int mixed = Math.abs((seed + 31) * (index + 9) * 1103515245);
+            float wave = 0.28f + (mixed % 100) / 145f;
+            if (index % 7 == 0) {
+                wave *= 1.25f;
+            }
+            return wave;
+        }
+
+        private int barColorForIndex(int index, int bars) {
+            if (progress <= 0f) {
+                return barColor;
+            }
+            float playedBars = progress * bars;
+            if (index <= playedBars) {
+                return CREAM;
+            }
+            return Color.argb(110, Color.red(barColor), Color.green(barColor), Color.blue(barColor));
         }
     }
 
