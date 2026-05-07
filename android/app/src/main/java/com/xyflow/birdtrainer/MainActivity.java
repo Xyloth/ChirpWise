@@ -1,6 +1,7 @@
 package com.xyflow.birdtrainer;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.Canvas;
@@ -17,9 +18,11 @@ import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -63,6 +66,17 @@ public class MainActivity extends Activity {
     private static final int RUST = Color.rgb(171, 97, 58);
     private static final int LINE = Color.rgb(88, 112, 57);
     private static final int MUTED = Color.rgb(184, 195, 145);
+    private static final String PREF_QUIZ_PACK = "quiz_pack";
+    private static final String PREF_CUSTOM_SPECIES = "custom_species";
+    private static final String PACK_ALL = "all";
+    private static final String PACK_BACKYARD = "backyard";
+    private static final String PACK_WARBLERS = "warblers";
+    private static final String PACK_SPARROWS = "sparrows";
+    private static final String PACK_WATERFOWL = "waterfowl";
+    private static final String PACK_SHORE_GULLS = "shore_gulls";
+    private static final String PACK_RAPTORS_OWLS = "raptors_owls";
+    private static final String PACK_MARSH = "marsh";
+    private static final String PACK_CUSTOM = "custom";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable playbackTicker = new Runnable() {
@@ -85,6 +99,7 @@ public class MainActivity extends Activity {
     private MediaPlayer player;
     private Clip activeClip;
     private LinearLayout content;
+    private ScrollView mainScroll;
     private Screen currentScreen = Screen.LISTEN;
     private Clip currentQuizClip;
     private Clip lastPlayedClip;
@@ -211,13 +226,16 @@ public class MainActivity extends Activity {
         shell.setBackground(gradient(FOREST_2, FOREST));
 
         ScrollView scroll = new ScrollView(this);
+        mainScroll = scroll;
         scroll.setFillViewport(false);
         scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
 
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
+        content.setFocusableInTouchMode(true);
         content.setPadding(dp(18), dp(18), dp(18), dp(18));
         scroll.addView(content, new ScrollView.LayoutParams(match(), wrap()));
+        content.requestFocus();
         shell.addView(scroll, new LinearLayout.LayoutParams(match(), 0, 1f));
 
         shell.addView(buildNav(), new LinearLayout.LayoutParams(match(), dp(86)));
@@ -269,6 +287,9 @@ public class MainActivity extends Activity {
             buildSettingsScreen();
         }
         refreshNav();
+        if (mainScroll != null) {
+            handler.post(() -> mainScroll.scrollTo(0, 0));
+        }
     }
 
     private void refreshNav() {
@@ -336,7 +357,7 @@ public class MainActivity extends Activity {
         content.addView(actions, fullWidth());
         content.addView(spacer(14));
 
-        addSearchBlock(content, "Quick sound finder", 10, clip -> {
+        addSearchBlock(content, "Quick sound finder", clip -> {
             lastPlayedClip = clip;
             listenNowPlaying.setText(nowPlayingText(clip));
             playClip(clip);
@@ -345,9 +366,23 @@ public class MainActivity extends Activity {
 
     private void buildQuizScreen() {
         answerButtons.clear();
+
+        ArrayList<Clip> activePool = activeQuizSpecies();
+        if (activePool.size() < 3) {
+            addQuizPackPanel();
+            content.addView(spacer(14));
+            LinearLayout empty = panel(20, false);
+            empty.addView(sectionTitle("Build a focused set"));
+            empty.addView(body("Choose at least 3 birds for a custom quiz. Ten to twenty is a good loop for learning."));
+            content.addView(empty, fullWidth());
+            content.addView(spacer(14));
+            addCustomQuizBuilder();
+            return;
+        }
+
         LinearLayout card = panel(20, false);
         card.addView(sectionTitle("Identify by sound"));
-        card.addView(body("Play the hidden clip, choose the bird, then see the source and location."));
+        card.addView(body("Current pack: " + quizPackLabel(selectedQuizPack()) + ". Play the hidden clip, choose the bird, then see the source and location."));
         card.addView(spacer(12));
 
         quizWaveform = new WaveformView(this);
@@ -397,6 +432,12 @@ public class MainActivity extends Activity {
         Button next = secondaryButton("Next bird");
         next.setOnClickListener(view -> nextQuestion());
         content.addView(next, fullButton());
+        content.addView(spacer(14));
+        addQuizPackPanel();
+        if (PACK_CUSTOM.equals(selectedQuizPack())) {
+            content.addView(spacer(14));
+            addCustomQuizBuilder();
+        }
         nextQuestion();
     }
 
@@ -411,7 +452,7 @@ public class MainActivity extends Activity {
         content.addView(intro, fullWidth());
         content.addView(spacer(14));
 
-        addSearchBlock(content, "Find a bird", 40, clip -> {
+        addSearchBlock(content, "Find a bird", clip -> {
             lastPlayedClip = clip;
             studyNowPlaying.setText(nowPlayingText(clip));
             playClip(clip);
@@ -477,7 +518,11 @@ public class MainActivity extends Activity {
         showScreen(Screen.SETTINGS);
     }
 
-    private void addSearchBlock(LinearLayout parent, String title, int limit, ClipAction action) {
+    private void addSearchBlock(LinearLayout parent, String title, ClipAction action) {
+        addBirdBrowseBlock(parent, title, clip -> birdRow(clip, action));
+    }
+
+    private void addBirdBrowseBlock(LinearLayout parent, String title, ClipRowFactory rowFactory) {
         LinearLayout card = panel(20, false);
         card.addView(sectionTitle(title));
 
@@ -490,15 +535,45 @@ public class MainActivity extends Activity {
         search.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         search.setPadding(dp(16), 0, dp(16), 0);
         search.setBackground(round(Color.rgb(11, 34, 24), LINE, 18, 0xFF));
+        search.setOnClickListener(view -> showKeyboard(search));
         card.addView(search, new LinearLayout.LayoutParams(match(), dp(54)));
         card.addView(spacer(12));
 
+        LinearLayout letters = new LinearLayout(this);
+        letters.setOrientation(LinearLayout.HORIZONTAL);
+        letters.setGravity(Gravity.CENTER);
+        String[] ranges = {"All", "A-C", "D-H", "I-M", "N-R", "S-Z"};
+        final String[] activeRange = {ranges[0]};
+        for (String range : ranges) {
+            TextView chip = chip(range);
+            chip.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(38), 1f);
+            params.setMargins(dp(2), 0, dp(2), 0);
+            letters.addView(chip, params);
+            chip.setOnClickListener(view -> {
+                activeRange[0] = range;
+                hideKeyboard(search);
+                search.clearFocus();
+                fillBirdResults((LinearLayout) card.findViewWithTag("bird_results"), search.getText().toString(), activeRange[0], rowFactory);
+            });
+        }
+        card.addView(letters, fullWidth());
+        card.addView(spacer(12));
+
         LinearLayout results = new LinearLayout(this);
+        results.setTag("bird_results");
         results.setOrientation(LinearLayout.VERTICAL);
+        results.setOnTouchListener((view, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                hideKeyboard(search);
+                search.clearFocus();
+            }
+            return false;
+        });
         card.addView(results);
         parent.addView(card, fullWidth());
 
-        Runnable refresh = () -> fillBirdResults(results, search.getText().toString(), limit, action);
+        Runnable refresh = () -> fillBirdResults(results, search.getText().toString(), activeRange[0], rowFactory);
         search.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -516,7 +591,7 @@ public class MainActivity extends Activity {
         refresh.run();
     }
 
-    private void fillBirdResults(LinearLayout results, String query, int limit, ClipAction action) {
+    private void fillBirdResults(LinearLayout results, String query, String range, ClipRowFactory rowFactory) {
         results.removeAllViews();
         String needle = query.trim().toLowerCase(Locale.US);
         int shown = 0;
@@ -526,16 +601,43 @@ public class MainActivity extends Activity {
                     && !clip.scientificName.toLowerCase(Locale.US).contains(needle)) {
                 continue;
             }
-            results.addView(birdRow(clip, action), fullWidth());
-            shown++;
-            if (shown >= limit) {
-                break;
+            if (!letterMatches(clip, range)) {
+                continue;
             }
+            results.addView(rowFactory.create(clip), fullWidth());
+            shown++;
         }
         if (shown == 0) {
             TextView empty = body("No match yet. Try a common name or Latin name.");
             results.addView(empty);
+        } else {
+            TextView count = body(shown + " birds shown");
+            count.setGravity(Gravity.CENTER);
+            results.addView(count);
         }
+    }
+
+    private boolean letterMatches(Clip clip, String range) {
+        if (range == null || range.equals("All") || clip.commonName.isEmpty()) {
+            return true;
+        }
+        char first = Character.toUpperCase(clip.commonName.charAt(0));
+        if (range.equals("A-C")) {
+            return first >= 'A' && first <= 'C';
+        }
+        if (range.equals("D-H")) {
+            return first >= 'D' && first <= 'H';
+        }
+        if (range.equals("I-M")) {
+            return first >= 'I' && first <= 'M';
+        }
+        if (range.equals("N-R")) {
+            return first >= 'N' && first <= 'R';
+        }
+        if (range.equals("S-Z")) {
+            return first >= 'S' && first <= 'Z';
+        }
+        return true;
     }
 
     private LinearLayout birdRow(Clip clip, ClipAction action) {
@@ -585,6 +687,311 @@ public class MainActivity extends Activity {
         content.addView(card, fullWidth());
     }
 
+    private void addQuizPackPanel() {
+        LinearLayout card = panel(20, false);
+        card.addView(sectionTitle("Practice packs"));
+        card.addView(body("Use a smaller loop when you want repetition. The quiz still favors misses and learning birds inside the active pack."));
+        card.addView(spacer(10));
+
+        TextView current = chip("Using " + quizPackLabel(selectedQuizPack()) + " · " + activeQuizSpecies().size() + " birds");
+        current.setGravity(Gravity.CENTER);
+        card.addView(current, new LinearLayout.LayoutParams(match(), dp(40)));
+        card.addView(spacer(10));
+
+        addPackRow(card, PACK_ALL, PACK_BACKYARD);
+        addPackRow(card, PACK_WARBLERS, PACK_SPARROWS);
+        addPackRow(card, PACK_WATERFOWL, PACK_SHORE_GULLS);
+        addPackRow(card, PACK_RAPTORS_OWLS, PACK_MARSH);
+        addPackRow(card, PACK_CUSTOM, null);
+        content.addView(card, fullWidth());
+    }
+
+    private void addPackRow(LinearLayout card, String leftKey, String rightKey) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER);
+        row.addView(packButton(leftKey), new LinearLayout.LayoutParams(0, dp(64), 1f));
+        if (rightKey != null) {
+            LinearLayout.LayoutParams spacer = new LinearLayout.LayoutParams(dp(8), 1);
+            row.addView(new View(this), spacer);
+            row.addView(packButton(rightKey), new LinearLayout.LayoutParams(0, dp(64), 1f));
+        }
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(match(), dp(64));
+        params.setMargins(0, 0, 0, dp(8));
+        card.addView(row, params);
+    }
+
+    private Button packButton(String key) {
+        boolean selected = key.equals(selectedQuizPack());
+        Button button = selected ? creamButton(packButtonText(key)) : secondaryButton(packButtonText(key));
+        button.setTextSize(13);
+        button.setOnClickListener(view -> {
+            prefs.edit().putString(PREF_QUIZ_PACK, key).apply();
+            showScreen(Screen.QUIZ);
+        });
+        return button;
+    }
+
+    private String packButtonText(String key) {
+        return quizPackLabel(key) + "\n" + packMembers(key).size() + " birds";
+    }
+
+    private void addCustomQuizBuilder() {
+        LinearLayout card = panel(20, false);
+        card.addView(sectionTitle("Build your own quiz"));
+        card.addView(body("Pick the exact birds to drill. This is best with about 10-20 birds, but the app only requires 3."));
+        card.addView(spacer(10));
+
+        TextView count = body(customCountText());
+        count.setTextColor(CREAM_2);
+        card.addView(count);
+        card.addView(spacer(10));
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button use = creamButton("Use custom set");
+        use.setOnClickListener(view -> {
+            prefs.edit().putString(PREF_QUIZ_PACK, PACK_CUSTOM).apply();
+            showScreen(Screen.QUIZ);
+        });
+        actions.addView(use, new LinearLayout.LayoutParams(0, dp(58), 1f));
+
+        LinearLayout.LayoutParams gap = new LinearLayout.LayoutParams(dp(8), 1);
+        actions.addView(new View(this), gap);
+
+        Button clear = secondaryButton("Clear");
+        clear.setOnClickListener(view -> {
+            prefs.edit().putString(PREF_CUSTOM_SPECIES, "").putString(PREF_QUIZ_PACK, PACK_CUSTOM).apply();
+            showScreen(Screen.QUIZ);
+        });
+        actions.addView(clear, new LinearLayout.LayoutParams(0, dp(58), 0.72f));
+        card.addView(actions, fullWidth());
+        content.addView(card, fullWidth());
+        content.addView(spacer(14));
+
+        addBirdBrowseBlock(content, "Pick birds", clip -> customBirdRow(clip, count));
+    }
+
+    private LinearLayout customBirdRow(Clip clip, TextView countText) {
+        LinearLayout row = birdRow(clip, c -> {
+        });
+        TextView action = (TextView) row.getChildAt(1);
+        boolean selected = customSpeciesIds().contains(clip.speciesId);
+        action.setText(selected ? "Added" : "Add");
+        action.setBackground(round(selected ? CREAM : Color.rgb(42, 71, 34), selected ? CREAM_2 : LINE, 16, 0xFF));
+        action.setTextColor(selected ? FOREST : CREAM);
+        row.setOnClickListener(view -> {
+            Set<Integer> ids = customSpeciesIds();
+            if (ids.contains(clip.speciesId)) {
+                ids.remove(clip.speciesId);
+            } else {
+                ids.add(clip.speciesId);
+            }
+            saveCustomSpeciesIds(ids);
+            boolean nowSelected = ids.contains(clip.speciesId);
+            action.setText(nowSelected ? "Added" : "Add");
+            action.setBackground(round(nowSelected ? CREAM : Color.rgb(42, 71, 34), nowSelected ? CREAM_2 : LINE, 16, 0xFF));
+            action.setTextColor(nowSelected ? FOREST : CREAM);
+            countText.setText(customCountText());
+        });
+        return row;
+    }
+
+    private String selectedQuizPack() {
+        return prefs.getString(PREF_QUIZ_PACK, PACK_BACKYARD);
+    }
+
+    private ArrayList<Clip> activeQuizSpecies() {
+        return packMembers(selectedQuizPack());
+    }
+
+    private ArrayList<Clip> packMembers(String key) {
+        ArrayList<Clip> birds = new ArrayList<>();
+        Set<Integer> customIds = PACK_CUSTOM.equals(key) ? customSpeciesIds() : new HashSet<>();
+        for (Clip clip : speciesClips) {
+            if (PACK_CUSTOM.equals(key)) {
+                if (customIds.contains(clip.speciesId)) {
+                    birds.add(clip);
+                }
+            } else if (isInPack(clip, key)) {
+                birds.add(clip);
+            }
+        }
+        return birds;
+    }
+
+    private boolean isInPack(Clip clip, String key) {
+        String family = clip.family.toLowerCase(Locale.US);
+        String name = clip.commonName.toLowerCase(Locale.US);
+        if (PACK_ALL.equals(key)) {
+            return true;
+        }
+        if (PACK_BACKYARD.equals(key)) {
+            return isBackyardBird(name);
+        }
+        if (PACK_WARBLERS.equals(key)) {
+            return family.contains("warbler");
+        }
+        if (PACK_SPARROWS.equals(key)) {
+            return family.contains("sparrow") || family.contains("finch") || family.contains("longspur");
+        }
+        if (PACK_WATERFOWL.equals(key)) {
+            return family.contains("ducks") || family.contains("geese") || family.contains("swans");
+        }
+        if (PACK_SHORE_GULLS.equals(key)) {
+            return family.contains("gull")
+                    || family.contains("tern")
+                    || family.contains("skimmer")
+                    || family.contains("sandpiper")
+                    || family.contains("phalarope")
+                    || family.contains("plover")
+                    || family.contains("oystercatcher")
+                    || family.contains("avocet");
+        }
+        if (PACK_RAPTORS_OWLS.equals(key)) {
+            return family.contains("hawk")
+                    || family.contains("kite")
+                    || family.contains("eagle")
+                    || family.contains("falcon")
+                    || family.contains("vulture")
+                    || family.contains("owl");
+        }
+        if (PACK_MARSH.equals(key)) {
+            return family.contains("rail")
+                    || family.contains("gallinule")
+                    || family.contains("coot")
+                    || family.contains("heron")
+                    || family.contains("bittern")
+                    || family.contains("ibis")
+                    || family.contains("spoonbill")
+                    || family.contains("grebe")
+                    || family.contains("loon")
+                    || family.contains("cormorant")
+                    || family.contains("crane");
+        }
+        return true;
+    }
+
+    private boolean isBackyardBird(String name) {
+        return containsAny(name,
+                "mourning dove",
+                "chimney swift",
+                "ruby-throated hummingbird",
+                "red-bellied woodpecker",
+                "downy woodpecker",
+                "hairy woodpecker",
+                "northern flicker",
+                "pileated woodpecker",
+                "eastern phoebe",
+                "great crested flycatcher",
+                "blue-headed vireo",
+                "red-eyed vireo",
+                "blue jay",
+                "american crow",
+                "common raven",
+                "black-capped chickadee",
+                "carolina chickadee",
+                "tufted titmouse",
+                "white-breasted nuthatch",
+                "red-breasted nuthatch",
+                "brown creeper",
+                "house wren",
+                "carolina wren",
+                "gray catbird",
+                "brown thrasher",
+                "eastern bluebird",
+                "wood thrush",
+                "american robin",
+                "cedar waxwing",
+                "house sparrow",
+                "house finch",
+                "purple finch",
+                "american goldfinch",
+                "chipping sparrow",
+                "field sparrow",
+                "song sparrow",
+                "white-throated sparrow",
+                "dark-eyed junco",
+                "eastern towhee",
+                "baltimore oriole",
+                "red-winged blackbird",
+                "common grackle",
+                "brown-headed cowbird",
+                "ovenbird",
+                "common yellowthroat",
+                "yellow warbler",
+                "northern cardinal",
+                "rose-breasted grosbeak",
+                "indigo bunting");
+    }
+
+    private String quizPackLabel(String key) {
+        if (PACK_BACKYARD.equals(key)) {
+            return "Backyard";
+        }
+        if (PACK_WARBLERS.equals(key)) {
+            return "Warblers";
+        }
+        if (PACK_SPARROWS.equals(key)) {
+            return "Sparrows + finches";
+        }
+        if (PACK_WATERFOWL.equals(key)) {
+            return "Ducks + geese";
+        }
+        if (PACK_SHORE_GULLS.equals(key)) {
+            return "Gulls + shorebirds";
+        }
+        if (PACK_RAPTORS_OWLS.equals(key)) {
+            return "Raptors + owls";
+        }
+        if (PACK_MARSH.equals(key)) {
+            return "Marsh birds";
+        }
+        if (PACK_CUSTOM.equals(key)) {
+            return "Custom set";
+        }
+        return "All birds";
+    }
+
+    private boolean containsAny(String value, String... needles) {
+        for (String needle : needles) {
+            if (value.contains(needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Set<Integer> customSpeciesIds() {
+        Set<Integer> ids = new HashSet<>();
+        String current = prefs.getString(PREF_CUSTOM_SPECIES, "");
+        for (String value : current.split(",")) {
+            int id = parseInt(value.trim());
+            if (id > 0) {
+                ids.add(id);
+            }
+        }
+        return ids;
+    }
+
+    private void saveCustomSpeciesIds(Set<Integer> ids) {
+        ArrayList<String> values = new ArrayList<>();
+        ArrayList<Integer> sorted = new ArrayList<>(ids);
+        Collections.sort(sorted);
+        for (Integer id : sorted) {
+            values.add(String.valueOf(id));
+        }
+        prefs.edit().putString(PREF_CUSTOM_SPECIES, join(values)).apply();
+    }
+
+    private String customCountText() {
+        int count = customSpeciesIds().size();
+        if (count < 3) {
+            return count + " selected. Add " + (3 - count) + " more to start a custom quiz.";
+        }
+        return count + " selected. Use this set to loop those birds until they stick.";
+    }
+
     private void nextQuestion() {
         stopAudio();
         currentQuizClip = pickQuizClip();
@@ -609,9 +1016,14 @@ public class MainActivity extends Activity {
     }
 
     private Clip pickQuizClip() {
+        ArrayList<Clip> pool = activeQuizSpecies();
+        if (pool.isEmpty()) {
+            pool = speciesClips;
+        }
         ArrayList<Clip> needs = new ArrayList<>();
+        ArrayList<Clip> learning = new ArrayList<>();
         ArrayList<Clip> unseen = new ArrayList<>();
-        for (Clip clip : speciesClips) {
+        for (Clip clip : pool) {
             int attempts = speciesAttempts(clip.speciesId);
             int correct = speciesCorrect(clip.speciesId);
             int wrong = speciesWrong(clip.speciesId);
@@ -619,16 +1031,21 @@ public class MainActivity extends Activity {
                 unseen.add(randomClipForSpecies(clip.speciesId));
             } else if (wrong >= correct && wrong > 0) {
                 needs.add(randomClipForSpecies(clip.speciesId));
+            } else if (correct < 2) {
+                learning.add(randomClipForSpecies(clip.speciesId));
             }
         }
         int roll = random.nextInt(100);
         if (!needs.isEmpty() && roll < 45) {
             return needs.get(random.nextInt(needs.size()));
         }
-        if (!unseen.isEmpty() && roll < 80) {
+        if (!learning.isEmpty() && roll < 72) {
+            return learning.get(random.nextInt(learning.size()));
+        }
+        if (!unseen.isEmpty() && roll < 86) {
             return unseen.get(random.nextInt(unseen.size()));
         }
-        return pickRandomClip();
+        return randomClipFromPool(pool);
     }
 
     private Clip pickRandomClip() {
@@ -646,13 +1063,26 @@ public class MainActivity extends Activity {
         return speciesList.get(random.nextInt(speciesList.size()));
     }
 
+    private Clip randomClipFromPool(ArrayList<Clip> pool) {
+        if (pool == null || pool.isEmpty()) {
+            return pickRandomClip();
+        }
+        Clip speciesClip = pool.get(random.nextInt(pool.size()));
+        return randomClipForSpecies(speciesClip.speciesId);
+    }
+
     private ArrayList<Clip> buildOptions(Clip answer) {
         ArrayList<Clip> sameFamily = new ArrayList<>();
         ArrayList<Clip> others = new ArrayList<>();
+        ArrayList<Clip> fallback = new ArrayList<>();
+        ArrayList<Clip> pool = activeQuizSpecies();
+        if (pool.size() < 3) {
+            pool = speciesClips;
+        }
         Set<Integer> seen = new HashSet<>();
         seen.add(answer.speciesId);
 
-        for (Clip clip : speciesClips) {
+        for (Clip clip : pool) {
             if (clip.speciesId == answer.speciesId) {
                 continue;
             }
@@ -662,13 +1092,20 @@ public class MainActivity extends Activity {
                 others.add(clip);
             }
         }
+        for (Clip clip : speciesClips) {
+            if (clip.speciesId != answer.speciesId) {
+                fallback.add(clip);
+            }
+        }
         Collections.shuffle(sameFamily, random);
         Collections.shuffle(others, random);
+        Collections.shuffle(fallback, random);
 
         ArrayList<Clip> options = new ArrayList<>();
         options.add(answer);
         addUniqueOptions(options, sameFamily, seen);
         addUniqueOptions(options, others, seen);
+        addUniqueOptions(options, fallback, seen);
         Collections.shuffle(options, random);
         return options;
     }
@@ -1046,6 +1483,21 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void showKeyboard(View view) {
+        view.requestFocus();
+        InputMethodManager keyboard = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (keyboard != null) {
+            keyboard.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT);
+        }
+    }
+
+    private void hideKeyboard(View view) {
+        InputMethodManager keyboard = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (keyboard != null) {
+            keyboard.hideSoftInputFromWindow(view.getWindowToken(), 0);
+        }
+    }
+
     private TextView sectionTitle(String value) {
         return text(value, 22, Typeface.BOLD, CREAM);
     }
@@ -1165,6 +1617,10 @@ public class MainActivity extends Activity {
 
     private interface ClipAction {
         void run(Clip clip);
+    }
+
+    private interface ClipRowFactory {
+        View create(Clip clip);
     }
 
     private static class ProgressCounts {

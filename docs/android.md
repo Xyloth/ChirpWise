@@ -5,7 +5,7 @@ The Android V1 app is a native Java APK with the `Northeast / Ohio Valley` pack 
 Current local artifact:
 
 ```text
-dist/android/ChirpWise-Northeast-v0.2.2.apk
+dist/android/ChirpWise-Northeast-v0.2.3.apk
 ```
 
 Current bundled pack:
@@ -18,7 +18,7 @@ Current bundled pack:
 - APK size: about 81 MB
 - Android support: API 23+ / Android 6.0+
 
-V0.2 adds the ChirpWise visual shell: rounded touch controls, splash screen, fixed bottom tabs, instant bird lookup, alphabetical study mode, quiz mode, local progress tracking, a progress ring, recent birds, and a needs-practice list. V0.2.2 adds real waveform metadata, live quiz playback progress, play/pause, and five-second seeking.
+V0.2 adds the ChirpWise visual shell: rounded touch controls, splash screen, fixed bottom tabs, instant bird lookup, alphabetical study mode, quiz mode, local progress tracking, a progress ring, recent birds, and a needs-practice list. V0.2.2 adds real waveform metadata, live quiz playback progress, play/pause, and five-second seeking. V0.2.3 adds full Study/Listen browsing, letter filters, focused quiz packs, and custom quiz sets.
 
 ## Install On Android
 
@@ -71,5 +71,5 @@ android/app/build/outputs/apk/release/app-release.apk
 For local sharing, copy it to:
 
 ```text
-dist/android/ChirpWise-Northeast-v0.2.2.apk
+dist/android/ChirpWise-Northeast-v0.2.3.apk
 ```
