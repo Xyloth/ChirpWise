@@ -348,7 +348,7 @@ public class MainActivity extends Activity {
         card.addView(quizWaveform, new LinearLayout.LayoutParams(match(), dp(74)));
 
         Button listen = primaryButton("Listen");
-        listen.setOnClickListener(view -> playClip(currentQuizClip));
+        listen.setOnClickListener(view -> playHiddenQuizClip());
         card.addView(listen, fullButton());
         card.addView(spacer(10));
 
@@ -768,7 +768,15 @@ public class MainActivity extends Activity {
                 + "\nLicense: " + currentQuizClip.licenseName;
     }
 
+    private void playHiddenQuizClip() {
+        playClip(currentQuizClip, false);
+    }
+
     private void playClip(Clip clip) {
+        playClip(clip, true);
+    }
+
+    private void playClip(Clip clip, boolean showName) {
         if (clip == null) {
             return;
         }
@@ -782,7 +790,9 @@ public class MainActivity extends Activity {
             player.setOnCompletionListener(mp -> stopAudio());
             player.prepare();
             player.start();
-            Toast.makeText(this, "Playing " + clip.commonName, Toast.LENGTH_SHORT).show();
+            if (showName) {
+                Toast.makeText(this, "Playing " + clip.commonName, Toast.LENGTH_SHORT).show();
+            }
         } catch (Exception exception) {
             Toast.makeText(this, "Could not play this clip", Toast.LENGTH_SHORT).show();
         }

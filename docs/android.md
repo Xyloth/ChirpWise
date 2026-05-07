@@ -5,7 +5,7 @@ The Android V1 app is a native Java APK with the `Northeast / Ohio Valley` pack 
 Current local artifact:
 
 ```text
-dist/android/ChirpWise-Northeast-v0.2.0.apk
+dist/android/ChirpWise-Northeast-v0.2.1.apk
 ```
 
 Current bundled pack:
@@ -71,5 +71,5 @@ android/app/build/outputs/apk/release/app-release.apk
 For local sharing, copy it to:
 
 ```text
-dist/android/ChirpWise-Northeast-v0.2.0.apk
+dist/android/ChirpWise-Northeast-v0.2.1.apk
 ```

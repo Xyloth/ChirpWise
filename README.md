@@ -44,7 +44,7 @@ The closest computer preview is the actual APK running in the Android emulator:
 That script starts the `ChirpWise_Preview` virtual phone, installs:
 
 ```text
-dist/android/ChirpWise-Northeast-v0.2.0.apk
+dist/android/ChirpWise-Northeast-v0.2.1.apk
 ```
 
 and launches ChirpWise. This is the same Android app experience the phone user sees.
