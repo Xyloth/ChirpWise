@@ -34,6 +34,16 @@ On the phone:
 
 This is sideloading, so Android will warn because the APK is not coming from Google Play.
 
+## Launch On This Computer
+
+Use the Android emulator preview:
+
+```powershell
+.\tools\run_android_preview.ps1
+```
+
+That script launches the `ChirpWise_Preview` virtual phone, installs the current APK, and opens the app. This is the closest desktop workflow because it runs the same Android package that will be sideloaded on the phone.
+
 ## Build Locally
 
 The portable Android build chain is stored locally under `tools/android-build/` and intentionally ignored by Git.

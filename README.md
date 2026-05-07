@@ -1,16 +1,89 @@
 # ChirpWise
 
-Local-first bird-sound trainer for building, browsing, and quizzing against a license-aware bird audio library.
+ChirpWise is an offline bird-sound trainer for Android and desktop preview workflows. It lets a birder quickly search a species, play a real field recording, study the local sound library, and practice with a quiz that tracks weak birds over time.
 
-This repository is organized around the product spine:
+![ChirpWise Android preview](docs/screenshots/chirpwise-android-preview.png)
+
+## What It Demonstrates
+
+This project is built as a production-shaped portfolio piece, not a static demo. It covers:
+
+- Native Android UI built around fast field use: Listen, Quiz, Study, Progress, and Settings.
+- Real Xeno-canto bird recordings bundled into a local Northeast / Ohio Valley training pack.
+- License-aware ingestion that preserves recordist, source URL, Creative Commons license, and attribution for every clip.
+- A repeatable data pipeline for taxonomy import, Xeno-canto metadata search, audio download, 20-second clip generation, regional pack assembly, and coverage reporting.
+- Local progress tracking by species, including known birds, weak birds, unseen birds, recent birds, and streak.
+- Desktop preview support through an Android emulator so UI changes are tested against the same APK a user installs.
+
+## Product Shape
+
+The product spine is:
 
 ```text
-taxonomy -> audio acquisition -> license tracking -> normalized library -> searchable UI -> quiz engine
+taxonomy -> audio acquisition -> license tracking -> normalized library -> mobile UI -> quiz engine
 ```
 
-The app runs locally with Python and SQLite. It ships with a small generated fixture dataset so the UI and quiz engine work immediately. Real bird recordings are acquired through the Xeno-canto API v3 ingestion pipeline after you provide an API key.
+The current Android build ships the `Northeast / Ohio Valley` pack:
 
-## Quick Start
+- 316 regional species
+- 346 real 20-second Xeno-canto clips
+- Offline playback
+- Android 6.0+ support
+- Self-contained APK
+
+Generated datasets, API keys, build tools, signing keys, raw recordings, and APK outputs are kept out of Git. The repository tracks the source, build scripts, documentation, and screenshots.
+
+## Try It On This Computer
+
+The closest computer preview is the actual APK running in the Android emulator:
+
+```powershell
+.\tools\run_android_preview.ps1
+```
+
+That script starts the `ChirpWise_Preview` virtual phone, installs:
+
+```text
+dist/android/ChirpWise-Northeast-v0.2.0.apk
+```
+
+and launches ChirpWise. This is the same Android app experience the phone user sees.
+
+## Android Build
+
+```powershell
+$base = (Resolve-Path 'tools/android-build').Path
+$env:JAVA_HOME = Join-Path $base 'jdk-17'
+$env:ANDROID_HOME = Join-Path $base 'android-sdk'
+$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+$env:PATH = "$env:JAVA_HOME/bin;$base/gradle-8.10.2/bin;$env:ANDROID_HOME/platform-tools;$env:ANDROID_HOME/build-tools/35.0.0;$env:PATH"
+
+gradle -p android assembleRelease
+```
+
+The release APK is produced at:
+
+```text
+android/app/build/outputs/apk/release/app-release.apk
+```
+
+## Data Pipeline
+
+The data builder is staged so each part can be audited or rerun:
+
+```powershell
+$env:XENO_CANTO_API_KEY = "your-key"
+python tools/update_region_membership_from_xeno.py --region northeast
+python tools/backfill_region_audio.py --region northeast
+python tools/create_training_clips.py --seconds 20 --bitrate 96k
+python tools/build_android_assets.py --region northeast --pack-name "Northeast / Ohio Valley" --clean
+```
+
+Xeno-canto API v3 requires a registered account and verified email. Do not commit the API key.
+
+## Desktop Local App
+
+The repository also includes the earlier local desktop/browser trainer and SQLite-backed API:
 
 ```powershell
 python tools/run_app.py
@@ -22,120 +95,11 @@ Open:
 http://127.0.0.1:8765
 ```
 
-If `python` points to an older interpreter, use Python 3.12+.
-
-## Desktop Launcher
-
-After packaging, use:
-
-```text
-dist/BirdSoundTrainer/BirdSoundTrainer.exe
-```
-
-The desktop shortcut created by `tools/create_desktop_shortcut.ps1` points to that executable when it exists, otherwise it points to the local Python launcher.
-
-## What Is Included
-
-- Local SQLite database with normalized species, recordings, clips, progress, attribution, and similarity tables.
-- Static desktop-style app UI: dashboard, browse/search, species detail, quiz, progress, coverage, attributions, and settings.
-- Local HTTP API with no external runtime dependencies.
-- Native Android APK project with an offline Northeast / Ohio Valley ChirpWise pack.
-- Data builder modules for taxonomy import, Xeno-canto querying, metadata persistence, audio conversion, clip generation, database build, and coverage reporting.
-- License policy checks that treat attribution, NC, ND, and derivative rules as first-class data.
-- Real Xeno-canto audio clips when the local dataset has been built with an API key.
-- Four broad training regions, documented in `docs/regions.md`.
-
-## Real Dataset Flow
-
-1. Download an eBird/Clements or compatible taxonomy CSV.
-2. Put it under `data/raw/taxonomy/`.
-3. Get and set your Xeno-canto API v3 key:
-
-   - Register at `https://xeno-canto.org/` if you do not already have an account.
-   - Verify your email address.
-   - Go to `https://xeno-canto.org/account`.
-   - Copy the API key shown on the account page.
-   - Do not commit it to GitHub.
-
-```powershell
-$env:XENO_CANTO_API_KEY = "your-key"
-```
-
-4. Import taxonomy:
-
-```powershell
-python -m ingest.birdtrainer.cli import-taxonomy data/raw/taxonomy/your_taxonomy.csv --scope "US+Canada"
-```
-
-5. Query Xeno-canto API v3:
-
-```powershell
-python -m ingest.birdtrainer.cli query-xeno --limit-species 25 --country "United States" --country "Canada"
-```
-
-6. Download originals:
-
-```powershell
-python -m ingest.birdtrainer.cli download-audio
-```
-
-7. Build app-ready audio and clips. If `ffmpeg` is unavailable, attach original downloaded recordings directly as playable quiz audio:
-
-```powershell
-python -m ingest.birdtrainer.cli attach-original-clips
-```
-
-With `ffmpeg` installed, you can instead normalize and segment:
-
-```powershell
-python -m ingest.birdtrainer.cli normalize-audio
-python -m ingest.birdtrainer.cli segment-clips
-```
-
-8. Build the SQLite database and reports:
-
-```powershell
-python -m ingest.birdtrainer.cli build-database
-python -m ingest.birdtrainer.cli coverage-report
-```
-
-## Optional Tools
-
-`ffmpeg` is recommended for real audio normalization, opus/m4a export, and clip segmentation. The pipeline detects it at runtime and explains what could not be completed if it is absent. Fixture clips are generated as browser-playable WAV files and do not require ffmpeg.
-
-## One-Command Real Audio Build
-
-For the current starter species list:
-
-```powershell
-$env:XENO_CANTO_API_KEY = "your-key"
-python tools/build_real_dataset.py --limit-species 12
-```
-
-This queries API v3, imports metadata, downloads real recordings, attaches originals as quiz audio, removes generated fixture clips after real clips exist, and rebuilds coverage/license reports.
-
-## Portable Windows Build
-
-```powershell
-python -m pip install pyinstaller
-python -m PyInstaller BirdSoundTrainer.spec
-```
-
-Copy the entire `dist/BirdSoundTrainer/` folder to a flash drive. The executable depends on the adjacent `_internal` folder that contains the local app, database, audio, and manifests.
-
-## Android APK
-
-The Android V1 app is a native offline APK with the `Northeast / Ohio Valley` pack bundled:
-
-```text
-dist/android/ChirpWise-Northeast-v0.2.0.apk
-```
-
-It currently contains 316 regional species and 346 real 20-second Xeno-canto clips. The app has Listen, Quiz, Study, Progress, and Settings tabs. Build and sideload notes are in `docs/android.md`.
+The Android app is now the primary user experience; the desktop app remains useful for data inspection and local library browsing.
 
 ## License Hygiene
 
-Every recording carries:
+Every recording row stores:
 
 - `license_name`
 - `license_url`
@@ -144,22 +108,18 @@ Every recording carries:
 - `source_recording_id`
 - generated `attribution_text`
 
-The pipeline skips derivative operations for NoDerivatives licenses and can filter out NonCommercial licenses for commercial-safe builds.
+The pipeline can skip derivative operations for NoDerivatives licenses and can filter NonCommercial licenses for commercial-safe builds.
 
 ## Project Layout
 
 ```text
-ingest/
-  birdtrainer/        Python ingestion and database package
-  *.py                Thin command wrappers matching the data pipeline stages
-data/
-  raw/                Taxonomy, Xeno-canto metadata, original audio
-  processed/          App audio, clips, spectrogram/waveform artifacts
-  manifests/          Coverage and license reports
-  app/                SQLite database
-app/                  Static local UI
-server/               Local HTTP API/server
-tools/                Launch and utility scripts
-tests/                Stdlib test suite
-docs/                 Pipeline and licensing notes
+android/              Native Android app
+app/                  Desktop browser UI
+server/               Local HTTP API
+ingest/birdtrainer/   Python ingestion and SQLite package
+tools/                Build, launch, audio, Android, and dataset utilities
+docs/                 Pipeline notes, region docs, screenshots
+tests/                Python unit tests
+data/                 Ignored local database/audio/manifests
+dist/                 Ignored local APK and desktop builds
 ```
