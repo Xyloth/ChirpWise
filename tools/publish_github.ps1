@@ -14,6 +14,7 @@ if (!(Test-Path $gh)) {
 
 $description = "Offline bird-sound trainer with Xeno-canto ingestion, regional Android packs, and local progress tracking."
 $repo = "$Owner/$RepoName"
+$branch = (git branch --show-current).Trim()
 $exists = $false
 
 try {
@@ -26,7 +27,7 @@ try {
 if ($exists) {
     git remote remove origin 2>$null
     git remote add origin "https://github.com/$repo.git"
-    git push -u origin master
+    git push -u origin $branch
 } else {
     & $gh repo create $RepoName --private --source . --remote origin --push --description $description
 }
