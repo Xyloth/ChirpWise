@@ -25,16 +25,20 @@ $repo = "$Owner/$RepoName"
 $branch = (git branch --show-current).Trim()
 $exists = $false
 
-try {
-    & $gh repo view $repo | Out-Null
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+& $gh repo view $repo *> $null
+$repoViewExitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousErrorActionPreference
+if ($repoViewExitCode -eq 0) {
     $exists = $true
-} catch {
+} else {
     $exists = $false
 }
 
 if ($exists) {
-    $origin = git remote get-url origin 2>$null
-    if ($LASTEXITCODE -eq 0 -and $origin) {
+    $remotes = @(git remote)
+    if ($remotes -contains "origin") {
         git remote set-url origin "https://github.com/$repo.git"
     } else {
         git remote add origin "https://github.com/$repo.git"
