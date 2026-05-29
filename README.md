@@ -30,6 +30,17 @@ The current Android build profile is:
 
 Generated APKs, audio assets, API keys, signing keys, and local build tools are intentionally excluded from Git.
 
+## Commercial Status
+
+ChirpWise is a working personal/non-commercial app and portfolio artifact. The
+source code is MIT licensed, but the bird recordings are not. Audio assets remain
+under their original source licenses and are excluded from this repository. A
+paid or broadly distributed public build requires a commercial-safe replacement
+audio pack, direct recordist permission, or another reviewed licensing path.
+
+See [AUDIO_LICENSE_NOTICE.md](AUDIO_LICENSE_NOTICE.md) and
+[docs/licensing.md](docs/licensing.md) for the current licensing posture.
+
 ## Screenshots
 
 | Listen | Quiz |
@@ -131,3 +142,9 @@ dist/                 Ignored local APK and desktop builds
 Built by James Dye and XYFLOW Innovations, LLC.
 
 Bird recordings are credited per clip in the dataset and app attribution flow. Xeno-canto recordists retain rights to their recordings under the license attached to each source recording.
+
+## License
+
+Source code and project documentation are released under the MIT License. Audio
+recordings and generated audio assets are excluded; see
+[AUDIO_LICENSE_NOTICE.md](AUDIO_LICENSE_NOTICE.md).
